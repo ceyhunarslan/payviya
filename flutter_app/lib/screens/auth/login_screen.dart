@@ -40,10 +40,49 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       try {
-        // Actual API call
-        await AuthService.login(
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return Dialog(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    CircularProgressIndicator(),
+                    SizedBox(width: 20),
+                    Text("Giriş yapılıyor..."),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+
+        // Actual API call - now returns User object
+        final user = await AuthService.login(
           email: _emailController.text,
           password: _passwordController.text,
+        );
+
+        // Close loading dialog
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+
+        // Show welcome message
+        String welcomeMessage = user.name != 'User' 
+            ? 'Hoş geldiniz, ${user.name}!'
+            : 'Hoş geldiniz!';
+            
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(welcomeMessage),
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
 
         // Navigate to dashboard on success
@@ -51,9 +90,23 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
         );
       } catch (e) {
+        // Close loading dialog if it's open
+        if (Navigator.canPop(context)) {
+          Navigator.of(context).pop();
+        }
+        
         setState(() {
           _errorMessage = e.toString().replaceAll('Exception: ', '');
         });
+        
+        // Show a snackbar with the error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage ?? 'Bir hata oluştu'),
+            backgroundColor: AppTheme.errorColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       } finally {
         setState(() {
           _isLoading = false;

@@ -8,7 +8,7 @@ class ApiService {
   // Base URL for API calls - using conditional URL for web vs mobile
   static String get baseUrl {
     if (kIsWeb) {
-      // For web deployment, use the window origin with the correct port
+      // For web deployment, use the localhost with the correct port
       return 'http://localhost:8001/api/v1';
     } else {
       // For mobile devices, use your server IP (use the actual IP address when testing on physical devices)
@@ -25,6 +25,7 @@ class ApiService {
   // Set auth token if user is logged in
   static void setToken(String token) {
     headers['Authorization'] = 'Bearer $token';
+    print('Token set in headers: Bearer $token');
   }
 
   // GET request helper

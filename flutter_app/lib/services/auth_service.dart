@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:payviya_app/services/api_service.dart';
+import 'package:payviya_app/services/user_service.dart';
+import 'package:payviya_app/models/user.dart';
 
 class AuthService {
   // Auth-specific API endpoints
@@ -31,7 +33,7 @@ class AuthService {
     }
   }
 
-  static Future<Map<String, dynamic>> login({
+  static Future<User> login({
     required String email,
     required String password,
   }) async {
@@ -60,14 +62,40 @@ class AuthService {
         // Set token in API service for subsequent requests
         ApiService.setToken(tokenData['access_token']);
         
-        return tokenData;
+        // Fetch user profile
+        final user = await UserService.fetchUserProfile();
+        if (user == null) {
+          throw Exception('Failed to fetch user profile after login');
+        }
+        
+        return user;
       } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['detail'] ?? 'Login failed');
+        // Handle specific error cases
+        final errorBody = response.body;
+        try {
+          final errorData = jsonDecode(errorBody);
+          final errorDetail = errorData['detail'] ?? 'Login failed';
+          
+          // Handle specific error messages for better user feedback
+          if (errorDetail.toString().contains('Incorrect email or password')) {
+            throw Exception('E-posta veya şifre hatalı');
+          } else if (errorDetail.toString().contains('Inactive user')) {
+            throw Exception('Hesabınız aktif değil. Lütfen yönetici ile iletişime geçin.');
+          } else {
+            throw Exception(errorDetail);
+          }
+        } catch (e) {
+          // If we can't parse the error JSON, fall back to a generic message
+          throw Exception('Giriş başarısız: ${response.statusCode}');
+        }
       }
     } catch (e) {
       print('Login error: $e');
-      throw Exception('Login failed: $e');
+      // Re-throw with a cleaner error message if it's not already an Exception
+      if (e is Exception) {
+        throw e;
+      }
+      throw Exception('Giriş başarısız: $e');
     }
   }
 
@@ -78,6 +106,9 @@ class AuthService {
     
     // Clear token from API service
     ApiService.headers.remove('Authorization');
+    
+    // Clear user data
+    await UserService.clearUserData();
   }
 
   static Future<bool> isLoggedIn() async {

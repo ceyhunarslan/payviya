@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
+import 'package:payviya_app/services/auth_service.dart';
+import 'package:payviya_app/screens/auth/login_screen.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({Key? key}) : super(key: key);
@@ -465,10 +467,45 @@ class _ProfileTabState extends State<ProfileTab> {
             child: const Text('İptal'),
           ),
           TextButton(
-            onPressed: () {
-              // Handle logout
+            onPressed: () async {
+              // Close the dialog
               Navigator.of(context).pop();
-              // Navigate to login screen
+              
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext context) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                },
+              );
+              
+              try {
+                // Perform logout
+                await AuthService.logout();
+                
+                // Close loading indicator
+                Navigator.of(context).pop();
+                
+                // Navigate to login screen and remove all previous routes
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (Route<dynamic> route) => false,
+                );
+              } catch (e) {
+                // Close loading indicator
+                Navigator.of(context).pop();
+                
+                // Show error message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Çıkış yapılırken bir hata oluştu: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             child: const Text(
               'Çıkış Yap',
