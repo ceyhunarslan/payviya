@@ -1,0 +1,16 @@
+# Python and Flutter gitignore file
+# Python
+__pycache__/
+*.py[cod]
+.env
+venv/
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.DS_Store
+# Project structure
+/clean/
+/ios_app/
+/mobile_app/
+/venv/
