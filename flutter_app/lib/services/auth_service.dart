@@ -1,11 +1,15 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:payviya_app/services/api_service.dart';
 import 'package:payviya_app/services/user_service.dart';
+import 'package:http/http.dart' as http;
 import 'package:payviya_app/models/user.dart';
 
 class AuthService {
+  static const storage = FlutterSecureStorage();
+  static const _tokenKey = 'auth_token';
+  
   // Auth-specific API endpoints
   static Future<Map<String, dynamic>> register({
     required String email,
@@ -33,65 +37,89 @@ class AuthService {
     }
   }
 
-  static Future<User> login({
-    required String email,
-    required String password,
-  }) async {
+  // Login with email and password
+  static Future<User> login({required String email, required String password}) async {
     try {
-      print('Sending login request to: ${ApiService.baseUrl}/auth/login/access-token');
+      print('Sending login request to: ${ApiService.baseUrl}/api/v1/auth/login/access-token');
       
-      // For OAuth2 form data format, we need a direct HTTP call
+      // Use the appropriate content type for form data
+      ApiService.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      
+      // Prepare the request body
+      final body = {
+        'username': email,
+        'password': password,
+      };
+      
+      // Convert the body to URL encoded format
+      final encodedBody = body.entries
+          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+          
+      // Send the POST request directly without using ApiService.post
+      final uri = Uri.parse('${ApiService.baseUrl}/api/v1/auth/login/access-token');
       final response = await http.post(
-        Uri.parse('${ApiService.baseUrl}/auth/login/access-token'),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-        },
-        body: 'username=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}',
+        uri, 
+        headers: ApiService.headers, 
+        body: encodedBody
       );
       
-      print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
+      // Reset content type for future requests
+      ApiService.headers['Content-Type'] = 'application/json';
       
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final tokenData = jsonDecode(response.body);
+      print('Login response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('Login response body:\n${response.body}');
         
-        // Save token to local storage
-        await _saveToken(tokenData['access_token']);
+        // Save the token
+        final token = responseData['access_token'];
+        await storage.write(key: _tokenKey, value: token);
         
-        // Set token in API service for subsequent requests
-        ApiService.setToken(tokenData['access_token']);
+        // Set the token in the API service
+        ApiService.setToken(token);
         
-        // Fetch user profile
-        final user = await UserService.fetchUserProfile();
-        if (user == null) {
-          throw Exception('Failed to fetch user profile after login');
-        }
-        
-        return user;
-      } else {
-        // Handle specific error cases
-        final errorBody = response.body;
+        // Fetch the user profile after login and return it
         try {
-          final errorData = jsonDecode(errorBody);
-          final errorDetail = errorData['detail'] ?? 'Login failed';
-          
-          // Handle specific error messages for better user feedback
-          if (errorDetail.toString().contains('Incorrect email or password')) {
-            throw Exception('E-posta veya şifre hatalı');
-          } else if (errorDetail.toString().contains('Inactive user')) {
-            throw Exception('Hesabınız aktif değil. Lütfen yönetici ile iletişime geçin.');
-          } else {
-            throw Exception(errorDetail);
+          User? user = await UserService.fetchUserProfile();
+          if (user == null) {
+            throw Exception('Kullanıcı profili alınamadı');
+          }
+          return user;
+        } catch (profileError) {
+          print('Error fetching user profile after login: $profileError');
+          throw Exception('Giriş başarılı, ancak kullanıcı bilgileri alınamadı');
+        }
+      } else {
+        print('Login error: ${response.body}');
+        try {
+          final errorData = jsonDecode(response.body);
+          if (errorData['detail'] != null) {
+            if (errorData['detail'].toString().contains('Incorrect')) {
+              throw Exception('E-posta veya şifre hatalı');
+            } else if (errorData['detail'].toString().contains('not active')) {
+              throw Exception('Hesabınız aktif değil');
+            }
+            throw Exception(errorData['detail']);
           }
         } catch (e) {
-          // If we can't parse the error JSON, fall back to a generic message
-          throw Exception('Giriş başarısız: ${response.statusCode}');
+          // If we can't parse the error JSON
+          if (response.statusCode == 401) {
+            throw Exception('E-posta veya şifre hatalı');
+          } else if (response.statusCode == 403) {
+            throw Exception('Erişim reddedildi');
+          } else if (response.statusCode == 404) {
+            throw Exception('Sunucu bağlantısı kurulamadı');
+          } else if (response.statusCode >= 500) {
+            throw Exception('Sunucu hatası. Lütfen daha sonra tekrar deneyin');
+          }
         }
+        throw Exception('Giriş başarısız: ${response.statusCode}');
       }
     } catch (e) {
       print('Login error: $e');
-      // Re-throw with a cleaner error message if it's not already an Exception
+      // If it's already an Exception, just rethrow it
       if (e is Exception) {
         throw e;
       }
@@ -99,32 +127,24 @@ class AuthService {
     }
   }
 
+  // Check if user is logged in
+  static Future<bool> isLoggedIn() async {
+    final token = await getToken();
+    return token != null;
+  }
+
+  // Get stored token
+  static Future<String?> getToken() async {
+    return await storage.read(key: _tokenKey);
+  }
+
+  // Logout user
   static Future<void> logout() async {
-    // Clear token from shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    
-    // Clear token from API service
-    ApiService.headers.remove('Authorization');
+    // Clear the token
+    await storage.delete(key: _tokenKey);
     
     // Clear user data
     await UserService.clearUserData();
-  }
-
-  static Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-    return token != null && token.isNotEmpty;
-  }
-
-  static Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
-  }
-
-  static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
   }
 
   static Future<void> initializeAuth() async {

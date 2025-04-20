@@ -36,7 +36,7 @@ class AppTheme {
   static const Color darkDividerColor = Color(0xFF2C2C2C);
 
   // Font families with fallbacks to ensure text always displays
-  static const String primaryFontFamily = 'Roboto, Arial, Helvetica, sans-serif';
+  static const String primaryFontFamily = 'Roboto';
   
   // Text styles with fallback fonts
   static TextStyle get headingStyle => const TextStyle(
@@ -117,7 +117,7 @@ class AppTheme {
       surface: cardColor,
     ),
     scaffoldBackgroundColor: backgroundColor, // Ensures white background
-    fontFamily: 'Roboto, sans-serif', // Fallback added
+    fontFamily: 'Roboto', // Simple font family name without any commas or fallbacks
     appBarTheme: const AppBarTheme(
       elevation: 0,
       backgroundColor: Colors.white, // White app bar
@@ -196,7 +196,7 @@ class AppTheme {
       surface: darkCardColor,
     ),
     scaffoldBackgroundColor: darkBackgroundColor,
-    fontFamily: 'Roboto, sans-serif', // Fallback added
+    fontFamily: 'Roboto', // Simple font family name without any commas or fallbacks
     appBarTheme: const AppBarTheme(
       elevation: 0,
       backgroundColor: darkCardColor,

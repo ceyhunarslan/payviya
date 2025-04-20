@@ -10,9 +10,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Now use absolute imports
-from app.api.v1.router import api_router
-from app.core.config import settings
-from app.tasks.campaign_sync_task import schedule_campaign_sync
+from api.api.v1.router import api_router
+from api.core.config import settings
+from api.tasks.campaign_sync_task import schedule_campaign_sync
 
 # Configure logging
 logging.basicConfig(

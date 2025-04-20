@@ -39,7 +39,7 @@ class UserService {
       // Try to fetch from API first
       try {
         print('Attempting to fetch user profile from API');
-        final userData = await ApiService.get('/users/me');
+        final userData = await ApiService.get('/api/v1/users/me');
         print('User data fetched successfully: $userData');
         
         final user = User.fromJson(userData);
@@ -60,13 +60,15 @@ class UserService {
           print('Decoded token: $decodedToken');
           
           final userId = decodedToken['sub'];
+          final userName = decodedToken['name'] ?? 'User';
+          final userEmail = decodedToken['email'] ?? userId.toString();
           
           // Create a placeholder user with minimal information
           final user = User(
-            id: 1, // Use a default ID
-            email: userId,
-            name: 'Test',
-            surname: 'User',
+            id: int.tryParse(userId) ?? 1,
+            email: userEmail,
+            name: userName,
+            surname: '',
             isActive: true,
             isAdmin: false,
           );
@@ -93,7 +95,7 @@ class UserService {
     String? phone,
   }) async {
     try {
-      final userData = await ApiService.post('/users/update', {
+      final userData = await ApiService.post('/api/v1/users/update', {
         if (name != null) 'name': name,
         if (surname != null) 'surname': surname,
         if (email != null) 'email': email,

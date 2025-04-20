@@ -90,33 +90,45 @@ class Campaign {
   });
   
   factory Campaign.fromJson(Map<String, dynamic> json) {
+    // Handle potential nulls and different data types
+    
+    // Special handling for source field to match enum values in server
+    String sourceValue = json['source'] ?? 'MANUAL';
+    // Keep uppercase - the API now uses uppercase enum values
+    
     return Campaign(
       id: json['id'],
-      name: json['name'],
+      name: json['name'] ?? 'Unnamed Campaign',
       description: json['description'] ?? '',
-      bankId: json['bank_id'],
-      cardId: json['card_id'],
-      category: json['category'],
-      discountType: json['discount_type'],
-      discountValue: json['discount_value'].toDouble(),
-      minAmount: json['min_amount']?.toDouble() ?? 0,
-      maxDiscount: json['max_discount']?.toDouble(),
-      startDate: DateTime.parse(json['start_date']),
-      endDate: DateTime.parse(json['end_date']),
+      bankId: json['bank_id'] ?? 0,
+      cardId: json['card_id'] ?? 0,
+      category: json['category'] ?? 'Uncategorized',
+      discountType: json['discount_type'] ?? 'other',
+      discountValue: (json['discount_value'] ?? 0).toDouble(),
+      minAmount: (json['min_amount'] ?? 0).toDouble(),
+      maxDiscount: json['max_discount'] != null ? (json['max_discount']).toDouble() : null,
+      startDate: json['start_date'] != null 
+          ? DateTime.parse(json['start_date'])
+          : DateTime.now(),
+      endDate: json['end_date'] != null
+          ? DateTime.parse(json['end_date'])
+          : DateTime.now().add(const Duration(days: 30)),
       merchantId: json['merchant_id'],
       isActive: json['is_active'] ?? true,
       requiresEnrollment: json['requires_enrollment'] ?? false,
       enrollmentUrl: json['enrollment_url'],
-      source: json['source'] ?? 'manual',
+      source: sourceValue,
       status: json['status'] ?? 'approved',
-      externalId: json['external_id'],
+      externalId: json['external_id']?.toString(),
       priority: json['priority'] ?? 0,
       lastSyncAt: json['last_sync_at'] != null 
           ? DateTime.parse(json['last_sync_at'])
           : null,
       reviewNotes: json['review_notes'],
       reviewedBy: json['reviewed_by'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
       updatedAt: json['updated_at'] != null 
           ? DateTime.parse(json['updated_at'])
           : null,
@@ -144,8 +156,8 @@ class Bank {
   
   factory Bank.fromJson(Map<String, dynamic> json) {
     return Bank(
-      id: json['id'],
-      name: json['name'],
+      id: json['id'] ?? 0,
+      name: json['name'] ?? 'Unknown Bank',
       logoUrl: json['logo_url'],
     );
   }
@@ -180,13 +192,13 @@ class CreditCard {
   
   factory CreditCard.fromJson(Map<String, dynamic> json) {
     return CreditCard(
-      id: json['id'],
-      name: json['name'],
-      bankId: json['bank_id'],
-      cardType: json['card_type'],
-      cardTier: json['card_tier'],
-      annualFee: json['annual_fee']?.toDouble(),
-      rewardsRate: json['rewards_rate']?.toDouble(),
+      id: json['id'] ?? 0,
+      name: json['name'] ?? 'Unknown Card',
+      bankId: json['bank_id'] ?? 0,
+      cardType: json['card_type'] ?? 'unknown',
+      cardTier: json['card_tier'] ?? 'standard',
+      annualFee: json['annual_fee'] != null ? (json['annual_fee']).toDouble() : null,
+      rewardsRate: json['rewards_rate'] != null ? (json['rewards_rate']).toDouble() : null,
       applicationUrl: json['application_url'],
       affiliateCode: json['affiliate_code'],
       logoUrl: json['logo_url'],
@@ -210,9 +222,9 @@ class Merchant {
   
   factory Merchant.fromJson(Map<String, dynamic> json) {
     return Merchant(
-      id: json['id'],
-      name: json['name'],
-      categories: json['categories'],
+      id: json['id'] ?? 0,
+      name: json['name'] ?? 'Unknown Merchant',
+      categories: json['categories'] ?? '',
       logoUrl: json['logo_url'],
     );
   }

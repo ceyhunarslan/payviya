@@ -72,9 +72,16 @@ class _ProfileTabState extends State<ProfileTab> {
                     color: AppTheme.primaryColor.withOpacity(0.3),
                     width: 4,
                   ),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/avatar.png'),
-                    fit: BoxFit.cover,
+                  color: AppTheme.primaryColor.withOpacity(0.2),
+                ),
+                child: Center(
+                  child: Text(
+                    _userData['name'].toString().split(' ').map((name) => name[0]).join(''),
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                    ),
                   ),
                 ),
               ),
