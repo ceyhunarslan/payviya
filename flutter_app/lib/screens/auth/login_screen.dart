@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/screens/auth/register_screen.dart';
+import 'package:payviya_app/screens/auth/forgot_password_screen.dart';
 import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
 import 'package:payviya_app/services/auth_service.dart';
 
@@ -20,94 +21,48 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _togglePasswordVisibility() {
-    setState(() {
-      _isPasswordVisible = !_isPasswordVisible;
-    });
-  }
-
   Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      try {
-        // Show loading indicator
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return Dialog(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    CircularProgressIndicator(),
-                    SizedBox(width: 20),
-                    Text("Giriş yapılıyor..."),
-                  ],
-                ),
-              ),
-            );
-          },
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await AuthService.login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          (route) => false,
         );
-
-        // Actual API call - now returns User object
-        final user = await AuthService.login(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
-
-        // Close loading dialog
-        if (Navigator.canPop(context)) {
-          Navigator.of(context).pop();
-        }
-
-        // Show welcome message
-        String welcomeMessage = user.name != 'User' 
-            ? 'Hoş geldiniz, ${user.name}!'
-            : 'Hoş geldiniz!';
-            
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(welcomeMessage),
-            backgroundColor: AppTheme.successColor,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-
-        // Navigate to dashboard on success
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
-      } catch (e) {
-        // Close loading dialog if it's open
-        if (Navigator.canPop(context)) {
-          Navigator.of(context).pop();
-        }
-        
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = e.toString();
         });
-        
-        // Show a snackbar with the error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_errorMessage ?? 'Bir hata oluştu'),
-            backgroundColor: AppTheme.errorColor,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } finally {
+      }
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -162,36 +117,28 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                
-                // App name
-                const Center(
-                  child: Text(
-                    "PayViya",
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimaryColor,
-                    ),
+                const SizedBox(height: 32),
+                const Text(
+                  "Hoş Geldiniz",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimaryColor,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                
-                // Tagline
-                const Center(
-                  child: Text(
-                    "Akıllı Ödeme Asistanınıza Hoş Geldiniz",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppTheme.textSecondaryColor,
-                    ),
-                    textAlign: TextAlign.center,
+                const Text(
+                  "Hesabınıza giriş yapın",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.textSecondaryColor,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 48),
-                
-                // Error message
-                if (_errorMessage != null)
+                const SizedBox(height: 32),
+
+                if (_errorMessage != null) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                     decoration: BoxDecoration(
@@ -208,9 +155,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                if (_errorMessage != null) const SizedBox(height: 16),
-                
-                // Login form
+                  const SizedBox(height: 16),
+                ],
+
                 Form(
                   key: _formKey,
                   child: Column(
@@ -220,27 +167,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(
-                          color: AppTheme.textPrimaryColor,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                        ),
                         decoration: InputDecoration(
                           labelText: "E-posta",
-                          prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.primaryColor),
-                          filled: true,
-                          fillColor: Colors.white,
+                          prefixIcon: const Icon(Icons.email_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.dividerColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.dividerColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.primaryColor),
                           ),
                         ),
                         validator: (value) {
@@ -254,41 +185,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Password field
                       TextFormField(
                         controller: _passwordController,
                         obscureText: !_isPasswordVisible,
-                        style: const TextStyle(
-                          color: AppTheme.textPrimaryColor,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                        ),
                         decoration: InputDecoration(
                           labelText: "Şifre",
-                          prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.primaryColor),
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.dividerColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.dividerColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppTheme.primaryColor),
-                          ),
+                          prefixIcon: const Icon(Icons.lock_outlined),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _isPasswordVisible
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: AppTheme.textSecondaryColor,
+                              _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                             ),
-                            onPressed: _togglePasswordVisibility,
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         validator: (value) {
@@ -308,7 +224,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            // Navigate to forgot password screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ForgotPasswordScreen(),
+                              ),
+                            );
                           },
                           style: TextButton.styleFrom(
                             foregroundColor: AppTheme.primaryColor,
@@ -350,36 +271,36 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Register link
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            "Hesabınız yok mu?",
+                      // Register button
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.textSecondaryColor,
+                        ),
+                        child: RichText(
+                          text: const TextSpan(
+                            text: "Hesabınız yok mu? ",
                             style: TextStyle(
                               color: AppTheme.textSecondaryColor,
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const RegisterScreen(),
+                            children: [
+                              TextSpan(
+                                text: "Kayıt Olun",
+                                style: TextStyle(
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppTheme.primaryColor,
-                            ),
-                            child: const Text(
-                              "Kayıt Olun",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),

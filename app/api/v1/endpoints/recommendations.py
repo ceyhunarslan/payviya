@@ -1,6 +1,8 @@
 from typing import Any, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime
 
 from app.db.base import get_db
 from app.schemas.recommendation import (
@@ -10,6 +12,12 @@ from app.schemas.recommendation import (
     RecommendationClickResponse
 )
 from app.services.recommendation_service import RecommendationService
+from app.models.campaign import Campaign, CampaignSource
+from app.schemas.campaign import CampaignOut
+from app.api.deps import get_current_active_user
+from app.models.user import User
+from app.api.v1.endpoints.campaigns import campaign_to_campaign_out
+import random
 
 router = APIRouter()
 
@@ -55,4 +63,52 @@ def track_recommendation_click(
         success=result["success"],
         redirect_url=result.get("redirect_url"),
         message=result["message"]
-    ) 
+    )
+
+
+@router.get("/campaigns", response_model=List[CampaignOut])
+def get_recommended_campaigns(
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get recommended campaigns for the current user.
+    In a real implementation, you would use a recommendation algorithm.
+    For now, we'll just return random active campaigns.
+    """
+    try:
+        # Get current time
+        now = datetime.now()
+        
+        # Query active campaigns using SQLAlchemy with date validations
+        query = db.query(Campaign).filter(
+            Campaign.is_active == True,
+            Campaign.start_date <= now,
+            Campaign.end_date > now
+        )
+        
+        # Get all valid campaigns
+        campaigns = query.all()
+        
+        if not campaigns:
+            return []
+            
+        # Convert campaigns to output format using campaign_to_campaign_out
+        campaign_outs = []
+        for campaign in campaigns:
+            campaign_out = campaign_to_campaign_out(campaign, db)
+            campaign_outs.append(campaign_out)
+            
+        # Apply random sampling if needed
+        if len(campaign_outs) > limit:
+            campaign_outs = random.sample(campaign_outs, limit)
+            
+        print(f"Returning {len(campaign_outs)} recommended campaigns")
+        return campaign_outs
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_recommended_campaigns: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 

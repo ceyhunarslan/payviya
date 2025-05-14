@@ -3,302 +3,333 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:payviya_app/models/campaign.dart';
+import 'package:payviya_app/models/user_credit_card.dart';
+import 'package:dio/dio.dart';
+import 'package:payviya_app/models/credit_card.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:payviya_app/services/auth_service.dart';
+
+// Import API_BASE_URL constant
+import 'package:payviya_app/main.dart' show API_BASE_URL;
 
 class ApiService {
-  // Base URL for API calls - using conditional URL for web vs mobile
-  static String get baseUrl {
-    if (kIsWeb) {
-      // For web deployment, use the localhost with the correct port
-      return 'http://localhost:8001';
-    } else {
-      // For mobile devices, use your server IP (use the actual IP address when testing on physical devices)
-      return 'http://10.0.2.2:8001'; // Use 10.0.2.2 for Android emulator
-    }
+  static final ApiService instance = ApiService._internal();
+  final Dio _dio = Dio();
+  static bool _isInitialized = false;
+  
+  // Add public getter for dio instance
+  Dio get dio => _dio;
+  
+  ApiService._internal() {
+    _initializeDio();
   }
-  
-  // Headers for API calls
-  static Map<String, String> headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
-  
-  // Set auth token if user is logged in
-  static void setToken(String token) {
-    headers['Authorization'] = 'Bearer $token';
-    print('Token set in headers: Bearer $token');
-    
-    // Decode JWT to show user info
+
+  void _initializeDio() {
+    print('Initializing Dio instance');
+    _dio.options.baseUrl = API_BASE_URL;
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    _dio.options.validateStatus = (status) {
+      return status != null && status < 500;
+    };
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+
+    // Add interceptor for token management
+    _dio.interceptors.clear();
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          print('Making request to: ${options.path}');
+          print('Request headers before: ${options.headers}');
+          
+          // Get token before each request
+          final token = await AuthService.getToken();
+          if (token != null) {
+            print('Adding token to request headers: Bearer ${token.substring(0, 10)}...');
+            options.headers['Authorization'] = 'Bearer $token';
+          } else {
+            print('No token available for request to ${options.path}');
+          }
+          
+          print('Final request headers: ${options.headers}');
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          print('Received response from: ${response.requestOptions.path}');
+          print('Response status: ${response.statusCode}');
+          print('Response headers: ${response.headers}');
+          return handler.next(response);
+        },
+        onError: (DioException error, handler) async {
+          print('Request error for: ${error.requestOptions.path}');
+          print('Error type: ${error.type}');
+          print('Error message: ${error.message}');
+          print('Response status: ${error.response?.statusCode}');
+          print('Response data: ${error.response?.data}');
+          
+          if (error.response?.statusCode == 401) {
+            try {
+              print('Token expired, attempting refresh');
+              final newToken = await AuthService.refreshToken();
+              if (newToken != null) {
+                print('Token refreshed successfully, retrying request');
+                // Update token in headers
+                error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+                
+                // Create new request with updated token
+                final opts = Options(
+                  method: error.requestOptions.method,
+                  headers: error.requestOptions.headers,
+                );
+                
+                // Retry the request with new token
+                print('Retrying request with new token');
+                final response = await _dio.request(
+                  error.requestOptions.path,
+                  options: opts,
+                  data: error.requestOptions.data,
+                  queryParameters: error.requestOptions.queryParameters,
+                );
+                
+                print('Retry request successful');
+                return handler.resolve(response);
+              } else {
+                print('Token refresh failed');
+              }
+            } catch (e) {
+              print('Error during token refresh: $e');
+            }
+            // If refresh failed, clear token and logout
+            print('Clearing auth data after failed refresh');
+            await AuthService.logout();
+          }
+          return handler.next(error);
+        },
+      ),
+    );
+    print('Dio initialization completed');
+  }
+
+  // Method to update token
+  void updateToken(String token) {
+    print('Updating token in API service');
+    _dio.options.headers['Authorization'] = 'Bearer $token';
+  }
+
+  // Method to clear token
+  Future<void> clearToken() async {
+    print('Clearing token from API service');
+    _dio.options.headers.remove('Authorization');
+  }
+
+  // Add password reset method
+  Future<Map<String, dynamic>> resetPassword(String token, String newPassword) async {
     try {
-      final parts = token.split('.');
-      if (parts.length == 3) {
-        final payload = parts[1];
-        final normalized = base64Url.normalize(payload);
-        final decoded = utf8.decode(base64Url.decode(normalized));
-        print('Decoded token: $decoded');
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/password-reset/confirm',
+        data: {
+          'token': token,
+          'new_password': newPassword,
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        throw Exception('Şifre sıfırlama başarısız oldu');
       }
-    } catch (e) {
-      print('Error decoding token: $e');
+      
+      return response.data ?? {'message': 'Şifreniz başarıyla güncellendi'};
+    } on DioException catch (e) {
+      print('Error resetting password: $e');
+      if (e.response != null) {
+        throw Exception(e.response?.data['detail'] ?? 'Şifre sıfırlama başarısız oldu');
+      }
+      throw Exception('Sunucuya bağlanılamadı');
     }
   }
 
-  // GET request helper
-  static Future<dynamic> get(String endpoint) async {
-    final url = '$baseUrl$endpoint';
-    print('GET request to: $url');
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      );
-      
-      print('Response status code: ${response.statusCode}');
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        print('Response body length: ${response.body.length} bytes');
-      } else {
-        print('Error response: ${response.body}');
-      }
-      
-      return _processResponse(response);
-    } catch (e) {
-      print('Network error during GET request to $url: $e');
-      throw Exception('Failed to connect to server: $e');
-    }
+  // Static get method
+  static Future<dynamic> get(String path) async {
+    final response = await instance.dio.get(path);
+    return response.data;
   }
-  
-  // POST request helper
-  static Future<dynamic> post(String endpoint, dynamic data) async {
-    final url = '$baseUrl$endpoint';
-    print('POST request to: $url');
-    print('Request body: ${jsonEncode(data)}');
-    
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-      
-      print('Response status code: ${response.statusCode}');
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        print('Response body length: ${response.body.length} bytes');
-      } else {
-        print('Error response: ${response.body}');
-      }
-      
-      return _processResponse(response);
-    } catch (e) {
-      print('Network error during POST request to $url: $e');
-      throw Exception('Failed to connect to server: $e');
-    }
+
+  // Static post method
+  static Future<dynamic> post(String path, dynamic data) async {
+    final response = await instance.dio.post(path, data: data);
+    return response.data;
   }
-  
-  // Process the HTTP response
-  static dynamic _processResponse(http.Response response) {
-    try {
-      switch (response.statusCode) {
-        case 200:
-        case 201:
-          if (response.body.isEmpty) {
-            return {};
-          }
-          return jsonDecode(response.body);
-        case 400:
-          print('Bad request: ${response.body}');
-          throw Exception('Bad request: ${response.body}');
-        case 401:
-          print('Unauthorized: ${response.body}');
-          throw Exception('Unauthorized');
-        case 403:
-          print('Forbidden: ${response.body}');
-          throw Exception('Forbidden');
-        case 404:
-          print('Resource not found: ${response.body}');
-          throw Exception('Resource not found');
-        case 422:
-          print('Validation error: ${response.body}');
-          throw Exception('Validation error: ${response.body}');
-        case 500:
-          print('Server error: ${response.body}');
-          throw Exception('Server error');
-        default:
-          print('Error occurred (${response.statusCode}): ${response.body}');
-          throw Exception('Error occurred: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Exception during response processing: $e');
-      throw e;
-    }
-  }
-  
-  // Campaign-specific API calls
+
+  // Static campaign methods
   static Future<List<Campaign>> getCampaigns({int skip = 0, int limit = 20}) async {
     try {
-      final data = await get('/api/v1/campaigns?skip=$skip&limit=$limit');
+      final response = await instance.dio.get<dynamic>(
+        '/campaigns',
+        queryParameters: {
+          'skip': skip,
+          'limit': limit,
+        },
+      );
       
-      // Convert JSON data to Campaign objects
-      List<Campaign> campaigns = [];
-      if (data is List) {
-        for (var item in data) {
-          campaigns.add(Campaign.fromJson(item));
+      final List<Campaign> campaigns = [];
+      
+      if (response.data is List) {
+        // Handle direct list response
+        for (var item in response.data) {
+          try {
+            campaigns.add(Campaign.fromJson(item));
+          } catch (e) {
+            print('Error parsing campaign: $e');
+          }
         }
-      } else if (data is Map && data.containsKey('items')) {
-        for (var item in data['items']) {
-          campaigns.add(Campaign.fromJson(item));
+      } else if (response.data is Map) {
+        // Handle paginated response with 'items' field
+        final items = response.data['items'];
+        if (items is List) {
+          for (var item in items) {
+            try {
+              campaigns.add(Campaign.fromJson(item));
+            } catch (e) {
+              print('Error parsing campaign: $e');
+            }
+          }
         }
-      } else {
-        print('Unexpected response format: $data');
       }
       
       return campaigns;
     } catch (e) {
       print('Error fetching campaigns: $e');
-      rethrow; // Rethrow the exception to be handled by the UI
+      rethrow;
     }
   }
-  
-  static Future<Campaign> getCampaignById(int id) async {
-    final data = await get('/api/v1/campaigns/$id');
-    return Campaign.fromJson(data);
-  }
-  
-  static Future<Map<String, dynamic>> getCampaignStats() async {
+
+  static Future<List<Map<String, dynamic>>> getCampaignCategories() async {
     try {
-      return await get('/api/v1/campaigns/stats');
+      final response = await instance.dio.get<dynamic>('/campaigns/categories');
+      if (response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
+      } else if (response.data is Map && response.data['categories'] != null) {
+        return List<Map<String, dynamic>>.from(response.data['categories']);
+      }
+      return [];
     } catch (e) {
-      print('Error fetching campaign stats: $e');
-      rethrow; // Rethrow the exception to be handled by the UI
+      print('Error fetching campaign categories: $e');
+      return [];
     }
   }
-  
-  static Future<List<String>> getCampaignCategories() async {
+
+  static Future<List<Campaign>> getCampaignsByCategory(int categoryId) async {
     try {
-      final data = await get('/api/v1/campaigns/categories');
+      final response = await instance.dio.get<dynamic>('/campaigns/category/$categoryId');
+      final List<Campaign> campaigns = [];
       
-      List<String> categories = [];
-      if (data is List) {
-        for (var item in data) {
-          if (item is String) {
-            categories.add(item);
+      if (response.data is List) {
+        // Handle direct list response
+        for (var item in response.data) {
+          try {
+            campaigns.add(Campaign.fromJson(item));
+          } catch (e) {
+            print('Error parsing campaign: $e');
+          }
+        }
+      } else if (response.data is Map && response.data['items'] != null) {
+        // Handle paginated response with 'items' field
+        final items = response.data['items'];
+        if (items is List) {
+          for (var item in items) {
+            try {
+              campaigns.add(Campaign.fromJson(item));
+            } catch (e) {
+              print('Error parsing campaign: $e');
+            }
           }
         }
       }
       
-      return categories;
+      return campaigns;
     } catch (e) {
-      print('Error fetching campaign categories: $e');
-      rethrow; // Rethrow the exception to be handled by the UI
+      print('Error fetching campaigns for category $categoryId: $e');
+      return [];
     }
   }
-  
-  static Future<Campaign> getLastCapturedCampaign() async {
-    try {
-      final data = await get('/api/v1/campaigns/last-captured');
-      if (data == null) {
-        throw Exception('Empty response from server');
-      }
-      return Campaign.fromJson(data);
-    } catch (e) {
-      print('Error fetching last captured campaign: $e');
-      rethrow; // Rethrow the exception to be handled by the UI
-    }
-  }
-  
-  static Future<List<Campaign>> searchCampaigns(String query) async {
-    final data = await get('/campaigns/search?q=$query');
-    
-    List<Campaign> campaigns = [];
-    for (var item in data) {
-      campaigns.add(Campaign.fromJson(item));
-    }
-    
-    return campaigns;
-  }
-  
-  static Future<List<Campaign>> getCampaignsByCategory(String category) async {
-    final data = await get('/campaigns/category/$category');
-    
-    List<Campaign> campaigns = [];
-    if (data is List) {
-      for (var item in data) {
-        campaigns.add(Campaign.fromJson(item));
-      }
-    } else if (data is Map && data.containsKey('items')) {
-      for (var item in data['items']) {
-        campaigns.add(Campaign.fromJson(item));
-      }
-    }
-    
-    return campaigns;
-  }
-  
+
   static Future<List<Campaign>> getRecommendedCampaigns() async {
-    final data = await get('/recommendations/campaigns');
-    
-    List<Campaign> campaigns = [];
-    if (data is List) {
-      for (var item in data) {
-        campaigns.add(Campaign.fromJson(item));
+    try {
+      final response = await instance.dio.get<dynamic>('/recommendations/campaigns');
+      
+      final List<Campaign> campaigns = [];
+      
+      if (response.data is List) {
+        // Handle direct list response
+        for (var item in response.data) {
+          try {
+            campaigns.add(Campaign.fromJson(item));
+          } catch (e) {
+            print('Error parsing campaign: $e');
+          }
+        }
+      } else if (response.data is Map) {
+        // Handle paginated response with 'items' field
+        final items = response.data['items'];
+        if (items is List) {
+          for (var item in items) {
+            try {
+              campaigns.add(Campaign.fromJson(item));
+            } catch (e) {
+              print('Error parsing campaign: $e');
+            }
+          }
+        }
       }
-    } else if (data is Map && data.containsKey('items')) {
-      for (var item in data['items']) {
+      
+      return campaigns;
+    } catch (e) {
+      print('Error fetching recommended campaigns: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<Campaign>> searchCampaigns(String query) async {
+    final response = await instance.dio.get<Map<String, dynamic>>(
+      '/campaigns/search',
+      queryParameters: {'q': query},
+    );
+    
+    final List<Campaign> campaigns = [];
+    if (response.data != null && response.data!['items'] != null) {
+      for (var item in response.data!['items']) {
         campaigns.add(Campaign.fromJson(item));
       }
     }
-    
     return campaigns;
   }
-  
-  // Bank-specific API calls
-  static Future<List<Bank>> getBanks() async {
-    final data = await get('/banks');
-    
-    List<Bank> banks = [];
-    if (data is List) {
-      for (var item in data) {
-        banks.add(Bank.fromJson(item));
-      }
-    } else if (data is Map && data.containsKey('items')) {
-      for (var item in data['items']) {
-        banks.add(Bank.fromJson(item));
+
+  static Future<List<CreditCardListItem>> getUserCards() async {
+    final response = await instance.dio.get('/users/me/cards');
+    final List<CreditCardListItem> cards = [];
+    if (response.data != null) {
+      for (var item in response.data) {
+        cards.add(CreditCardListItem.fromJson(item));
       }
     }
-    
-    return banks;
-  }
-  
-  // Credit card-specific API calls
-  static Future<List<CreditCard>> getCreditCards() async {
-    final data = await get('/credit-cards');
-    
-    List<CreditCard> cards = [];
-    if (data is List) {
-      for (var item in data) {
-        cards.add(CreditCard.fromJson(item));
-      }
-    } else if (data is Map && data.containsKey('items')) {
-      for (var item in data['items']) {
-        cards.add(CreditCard.fromJson(item));
-      }
-    }
-    
     return cards;
   }
-  
-  // Recommendation API calls
-  static Future<Map<String, dynamic>> getRecommendation({
-    required double amount,
-    required String category,
-    String? merchantName,
-  }) async {
-    Map<String, dynamic> requestData = {
-      'amount': amount,
-      'category': category,
-    };
-    
-    if (merchantName != null) {
-      requestData['merchant_name'] = merchantName;
-    }
-    
-    return await post('/recommendations', requestData);
+
+  // Generic HTTP methods
+  static Future<dynamic> put(String path, dynamic data) async {
+    final response = await instance.dio.put(path, data: data);
+    return response.data;
+  }
+
+  static Future<dynamic> delete(String path) async {
+    final response = await instance.dio.delete(path);
+    return response.data;
+  }
+
+  // Add method to delete a user card
+  Future<void> deleteUserCard(int cardId) async {
+    await _dio.delete('/users/me/cards/$cardId');
   }
 } 

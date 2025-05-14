@@ -4,11 +4,17 @@ import 'package:payviya_app/models/campaign.dart';
 import 'package:payviya_app/services/campaign_service.dart';
 import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/widgets/campaign_card.dart';
+import 'package:payviya_app/widgets/campaign_detail_card.dart';
+import 'package:payviya_app/widgets/campaign_template.dart';
 import 'package:payviya_app/widgets/loading_indicator.dart';
 import 'package:payviya_app/widgets/error_indicator.dart';
 import 'package:payviya_app/widgets/savings_chart.dart';
 import 'package:payviya_app/widgets/dashboard_card.dart';
+import 'package:payviya_app/widgets/latest_campaign_card.dart';
 import 'package:payviya_app/services/api_service.dart';
+import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
+import 'package:payviya_app/widgets/user_avatar.dart';
+import 'dart:developer' as developer;
 
 class HomeTab extends StatefulWidget {
   const HomeTab({Key? key}) : super(key: key);
@@ -22,6 +28,7 @@ class _HomeTabState extends State<HomeTab> {
   bool _hasError = false;
   String? _errorMessage = '';
   String _userName = '';
+  String _userSurname = '';
   
   // Campaign data
   List<Campaign> _recentCampaigns = [];
@@ -33,7 +40,7 @@ class _HomeTabState extends State<HomeTab> {
     'expiring_soon': 0,
   };
   Campaign? _lastCapturedCampaign;
-  List<String> _categories = [];
+  List<Map<String, dynamic>> _categories = [];
   
   // Total campaign count
   final int _totalCampaignCount = 35;
@@ -55,6 +62,7 @@ class _HomeTabState extends State<HomeTab> {
       final userData = await UserService.getCurrentUser();
       // Just use the name property since full_name doesn't exist
       _userName = userData?.name ?? 'User';
+      _userSurname = userData?.surname ?? '';
       
       // Get campaign data
       try {
@@ -85,8 +93,12 @@ class _HomeTabState extends State<HomeTab> {
       // Get last captured campaign
       try {
         _lastCapturedCampaign = await CampaignService.getLastCapturedCampaign();
+        developer.log("Last captured campaign: ${_lastCapturedCampaign != null ? 'Found' : 'Not found'}");
+        if (_lastCapturedCampaign != null) {
+          developer.log("Campaign details: Name=${_lastCapturedCampaign!.name}, ID=${_lastCapturedCampaign!.id}");
+        }
       } catch (e) {
-        print('Error loading last captured campaign: $e');
+        developer.log('Error loading last captured campaign: $e');
         _lastCapturedCampaign = null;
       }
       
@@ -132,6 +144,8 @@ class _HomeTabState extends State<HomeTab> {
   }
   
   Widget _buildDashboardContent() {
+    developer.log("Building dashboard content. lastCapturedCampaign is ${_lastCapturedCampaign != null ? 'NOT null' : 'null'}");
+    
     return CustomScrollView(
       slivers: [
         // App Bar
@@ -144,16 +158,14 @@ class _HomeTabState extends State<HomeTab> {
           elevation: 0,
           title: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: AppTheme.primaryColor,
+              UserAvatar(
+                name: _userName,
+                surname: _userSurname,
                 radius: 18,
-                child: Text(
-                  _userName.isNotEmpty ? _userName[0].toUpperCase() : "U",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundColor: AppTheme.primaryColor,
+                textColor: Colors.white,
+                fontSize: 16,
+                enableTap: true,
               ),
               const SizedBox(width: 12),
               Text(
@@ -190,48 +202,60 @@ class _HomeTabState extends State<HomeTab> {
                 
                 // 1. Last captured campaign - only show if not null
                 if (_lastCapturedCampaign != null) 
-                  _buildLastCaughtCampaign(),
-                
-                // 2. Campaign stats
-                _buildCampaignStats(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DashboardCard(
+                        title: 'Son Eklenen Kampanya',
+                        trailing: const Icon(
+                          Icons.new_releases_outlined,
+                          color: AppTheme.primaryColor,
+                        ),
+                        child: CampaignTemplate(
+                          campaign: _lastCapturedCampaign!,
+                          style: CampaignTemplateStyle.discover,
+                          width: double.infinity,
+                          onTap: () {
+                            // Navigate to campaign detail
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  )
+                else
+                  _buildLastCapturedPlaceholder(),
                 
                 // 3. Recommended campaigns
-                if (_recommendedCampaigns.isNotEmpty) ...[
-                  DashboardCard(
-                    title: 'Sizin İçin Öneriler',
-                    trailing: const Icon(
-                      Icons.recommend,
-                      color: AppTheme.primaryColor,
-                    ),
-                    child: SizedBox(
-                      height: 180,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _recommendedCampaigns.length,
-                        itemBuilder: (context, index) {
-                          final campaign = _recommendedCampaigns[index];
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              right: index < _recommendedCampaigns.length - 1 ? 12 : 0,
-                            ),
-                            child: CampaignCard(
-                              bankName: campaign.bank?.name ?? 'Bank',
-                              cardName: campaign.creditCard?.name ?? 'Card',
-                              discount: campaign.formattedDiscount,
-                              category: campaign.category,
-                              expiry: campaign.timeRemaining,
-                              color: _getColorForIndex(index),
-                              width: 280,
+                DashboardCard(
+                  title: 'En İyi Fırsatlar',
+                  subtitle: 'Size özel seçilmiş en avantajlı kampanyalar',
+                  trailing: const Icon(
+                    Icons.star,
+                    color: AppTheme.primaryColor,
+                  ),
+                  child: _recommendedCampaigns.isNotEmpty
+                    ? Column(
+                        children: [
+                          // First campaign gets special treatment as the "best offer"
+                          if (_recommendedCampaigns.isNotEmpty) 
+                            GestureDetector(
                               onTap: () {
                                 // Navigate to campaign detail
                               },
+                              child: CampaignTemplate(
+                                campaign: _recommendedCampaigns.first,
+                                style: CampaignTemplateStyle.discover,
+                                width: double.infinity,
+                                onTap: () {
+                                  // Navigate to campaign detail
+                                },
+                              ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                        ],
+                      )
+                    : _buildNoRecommendationsPlaceholder(),
+                ),
                 
                 // 4. Recent campaigns
                 if (_recentCampaigns.isNotEmpty) ...[
@@ -242,28 +266,19 @@ class _HomeTabState extends State<HomeTab> {
                       color: AppTheme.primaryColor,
                     ),
                     child: SizedBox(
-                      height: 180,
+                      height: 255,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
                         itemCount: _recentCampaigns.length,
                         itemBuilder: (context, index) {
                           final campaign = _recentCampaigns[index];
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              right: index < _recentCampaigns.length - 1 ? 12 : 0,
-                            ),
-                            child: CampaignCard(
-                              bankName: campaign.bank?.name ?? 'Bank',
-                              cardName: campaign.creditCard?.name ?? 'Card',
-                              discount: campaign.formattedDiscount,
-                              category: campaign.category,
-                              expiry: campaign.timeRemaining,
-                              color: _getColorForIndex(index),
-                              width: 280,
-                              onTap: () {
-                                // Navigate to campaign detail
-                              },
-                            ),
+                          return CampaignTemplate(
+                            campaign: campaign,
+                            style: CampaignTemplateStyle.discover,
+                            width: 280,
+                            onTap: () {
+                              // Navigate to campaign detail
+                            },
                           );
                         },
                       ),
@@ -285,119 +300,18 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
   
-  Widget _buildLastCaughtCampaign() {
-    if (_isLoading) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    
-    if (_errorMessage != null) {
-      return Container(
-        height: 150,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.red,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    
-    if (_lastCapturedCampaign == null) {
-      return Container(
-        height: 150,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Text(
-            'Henüz yakalanmış kampanya bulunmamaktadır.',
-            style: TextStyle(
-              color: AppTheme.textSecondaryColor,
-            ),
-          ),
-        ),
-      );
-    }
-    
-    // Get bank and card info from the campaign
-    final bankName = _lastCapturedCampaign!.bank?.name ?? 'Banka';
-    final cardName = _lastCapturedCampaign!.creditCard?.name ?? 'Kart';
-    final category = _lastCapturedCampaign!.category;
-    final discount = _lastCapturedCampaign!.formattedDiscount;
-    final expiry = 'Son: ${_lastCapturedCampaign!.endDate.day}/${_lastCapturedCampaign!.endDate.month}/${_lastCapturedCampaign!.endDate.year}';
-    
-    // Generate a color based on the bank name or use a default
-    Color cardColor;
-    if (_lastCapturedCampaign!.bank != null) {
-      // Use a consistent color based on bank name hash
-      final nameHash = bankName.hashCode.abs() % 10;
-      const colors = [
-        Color(0xFF3A86FF), // Blue
-        Color(0xFFFF006E), // Pink
-        Color(0xFF8338EC), // Purple
-        Color(0xFFFB5607), // Orange
-        Color(0xFFFFBE0B), // Yellow
-        Color(0xFF3A5A40), // Green
-        Color(0xFFE63946), // Red
-        Color(0xFF457B9D), // Teal
-        Color(0xFF9D4EDD), // Lavender
-        Color(0xFF2A9D8F), // Seafoam
-      ];
-      cardColor = colors[nameHash];
-    } else {
-      cardColor = const Color(0xFF3A86FF); // Default blue
-    }
-    
+  Widget _buildLastCapturedPlaceholder() {
     return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -405,49 +319,119 @@ class _HomeTabState extends State<HomeTab> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: CampaignCard(
-                  bankName: bankName,
-                  cardName: cardName,
-                  discount: discount,
-                  category: category,
-                  expiry: expiry,
-                  color: cardColor,
-                  width: double.infinity,
-                  onTap: () {
-                    // Navigate to campaign detail
-                  },
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.local_offer_rounded,
+                      size: 16,
+                      color: AppTheme.primaryColor,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      "Son Eklenen Kampanya",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+                onPressed: _fetchLastCapturedCampaign,
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.access_time_rounded,
-                  size: 16,
-                  color: AppTheme.textSecondaryColor,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Kaynak: ${_lastCapturedCampaign!.source}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondaryColor,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: _fetchLastCapturedCampaign,
-                  child: const Text('Yenile'),
-                ),
-              ],
+          const SizedBox(height: 20),
+          const Center(
+            child: Text(
+              'Henüz yakalanmış kampanya bulunmamaktadır.',
+              style: TextStyle(
+                color: AppTheme.textSecondaryColor,
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildLastCapturedCampaign() {
+    if (_lastCapturedCampaign == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.local_offer_rounded,
+                      size: 16,
+                      color: AppTheme.primaryColor,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      "Son Eklenen Kampanya",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+                onPressed: _fetchLastCapturedCampaign,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CampaignTemplate(
+            campaign: _lastCapturedCampaign!,
+            style: CampaignTemplateStyle.card,
+            width: double.infinity,
+            onTap: () {
+              // Navigate to campaign detail
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
   
@@ -458,7 +442,8 @@ class _HomeTabState extends State<HomeTab> {
     });
     
     try {
-      final campaign = await ApiService.getLastCapturedCampaign();
+      final campaign = await CampaignService.getLastCapturedCampaign();
+      developer.log("Fetched campaign: ${campaign != null ? campaign.name : 'null'}");
       setState(() {
         _lastCapturedCampaign = campaign;
         _isLoading = false;
@@ -468,56 +453,8 @@ class _HomeTabState extends State<HomeTab> {
         _errorMessage = 'Kampanya yüklenirken bir hata oluştu: $e';
         _isLoading = false;
       });
-      print('Error fetching last captured campaign: $e');
+      developer.log('Error fetching last captured campaign: $e');
     }
-  }
-  
-  Widget _buildCampaignStats() {
-    return DashboardCard(
-      title: 'Kampanya İstatistikleri',
-      trailing: Icon(
-        Icons.bar_chart,
-        color: AppTheme.primaryColor,
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem('Toplam', _campaignStats['total']?.toString() ?? '0', Icons.all_inclusive),
-          _buildStatItem('Aktif', _campaignStats['active']?.toString() ?? '0', Icons.check_circle_outline),
-          _buildStatItem('Yakında Bitiyor', _campaignStats['expiring_soon']?.toString() ?? '0', Icons.timer),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: AppTheme.primaryColor,
-          size: 28,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimaryColor,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.textSecondaryColor,
-          ),
-        ),
-      ],
-    );
   }
   
   Widget _buildCategoryCampaigns() {
@@ -530,40 +467,38 @@ class _HomeTabState extends State<HomeTab> {
     
     return Column(
       children: categoriesToShow.map((category) {
+        final displayName = CampaignService.getCategoryDisplayName(category);
+        
         return DashboardCard(
-          title: '$category Kampanyaları',
+          title: '$displayName Kampanyaları',
           trailing: Text(
             'Tümünü Gör',
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
               color: AppTheme.primaryColor,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          onTap: () {
-            // Navigate to category campaigns page
-          },
           child: SizedBox(
-            height: 180,
+            height: 255,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: _campaignsByCategory[category]!.length,
               itemBuilder: (context, index) {
                 final campaign = _campaignsByCategory[category]![index];
                 return Padding(
-                  padding: EdgeInsets.only(
-                    right: index < _campaignsByCategory[category]!.length - 1 ? 12 : 0,
-                  ),
-                  child: CampaignCard(
-                    bankName: campaign.bank?.name ?? 'Bank',
-                    cardName: campaign.creditCard?.name ?? 'Card',
-                    discount: campaign.formattedDiscount,
-                    category: campaign.category,
-                    expiry: campaign.timeRemaining,
-                    color: _getColorForIndex(index),
+                  padding: const EdgeInsets.only(right: 16),
+                  child: CampaignTemplate(
+                    campaign: campaign,
+                    style: CampaignTemplateStyle.discover,
                     width: 280,
                     onTap: () {
-                      // Navigate to campaign detail
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CampaignDetailScreen(campaign: campaign),
+                        ),
+                      );
                     },
                   ),
                 );
@@ -625,6 +560,145 @@ class _HomeTabState extends State<HomeTab> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBestOfferCard(Campaign campaign) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.star_rounded,
+                  size: 16,
+                  color: AppTheme.primaryColor,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  "En İyi Fırsat",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          CampaignTemplate(
+            campaign: campaign,
+            style: CampaignTemplateStyle.card,
+            width: double.infinity,
+            onTap: () {
+              // Navigate to campaign detail
+            },
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Helper method to get a consistent color based on bank name
+  Color _getBankColor(String bankName) {
+    if (bankName.isEmpty) return AppTheme.primaryColor;
+    
+    // Simple hash function for the bank name
+    int hash = 0;
+    for (int i = 0; i < bankName.length; i++) {
+      hash = bankName.codeUnitAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Convert to color
+    final red = ((hash & 0xFF0000) >> 16);
+    final green = ((hash & 0x00FF00) >> 8);
+    final blue = (hash & 0x0000FF);
+    
+    // Ensure color is not too light (for contrast with white text)
+    return Color.fromARGB(
+      255,
+      red.clamp(50, 220),
+      green.clamp(50, 220),
+      blue.clamp(50, 220),
+    );
+  }
+
+  Widget _buildNoRecommendationsPlaceholder() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.local_offer_rounded,
+                      size: 16,
+                      color: AppTheme.primaryColor,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      "En İyi Fırsatlar",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppTheme.primaryColor,
+                ),
+                onPressed: _loadDashboardData,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Center(
+            child: Text(
+              'Henüz önerilen kampanya bulunmamaktadır.',
+              style: TextStyle(
+                color: AppTheme.textSecondaryColor,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

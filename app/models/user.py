@@ -9,8 +9,12 @@ from app.db.base import Base
 user_credit_cards = Table(
     "user_credit_cards",
     Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column("credit_card_id", Integer, ForeignKey("credit_cards.id"), primary_key=True),
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id")),
+    Column("credit_card_id", Integer, ForeignKey("credit_cards.id")),
+    Column("status", Boolean, default=True, nullable=False),
+    Column("created_at", DateTime(timezone=True), server_default=func.now()),
+    Column("updated_at", DateTime(timezone=True), onupdate=func.now())
 )
 
 
@@ -22,6 +26,10 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
+    name = Column(String(100), nullable=True)
+    surname = Column(String(100), nullable=True)
+    country_code = Column(String(5), nullable=True)  # e.g., "90" for Turkey
+    phone_number = Column(String(15), nullable=True)  # e.g., "5327712694"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

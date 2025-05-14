@@ -19,6 +19,7 @@ class CardRecommendation(BaseModel):
     card_id: int
     card_name: str
     bank_name: str
+    category_name: str
     discount_type: str
     discount_value: float
     final_amount: float

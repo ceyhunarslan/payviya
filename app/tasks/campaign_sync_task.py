@@ -42,6 +42,7 @@ async def sync_campaigns() -> Dict[str, Any]:
                 )
         
         return result
+        
     except Exception as e:
         logger.error(f"Error in campaign sync task: {str(e)}")
         logger.error(traceback.format_exc())
@@ -65,19 +66,22 @@ def schedule_campaign_sync(scheduler):
         'cron',
         hour=2,
         minute=0,
-        id='campaign_sync_task',
+        id='sync_campaigns',
         replace_existing=True
     )
     
     logger.info("Campaign sync task scheduled to run daily at 2:00 AM")
     
-    # You can also add a job to run immediately on startup
+    # Run the job immediately as well, but don't use a persistent job ID 
+    # to avoid issues when shutting down
     scheduler.add_job(
         sync_campaigns,
         'date',
         run_date=datetime.now(),
-        id='campaign_sync_startup',
-        replace_existing=True
+        id='sync_campaigns_startup',
     )
+    
+    # After the job runs once, it is automatically removed from the job store
+    # so there's no need to call remove_job on shutdown
     
     logger.info("Campaign sync task scheduled to run on startup") 

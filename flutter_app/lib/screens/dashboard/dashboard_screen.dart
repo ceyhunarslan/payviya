@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
-import 'package:payviya_app/screens/dashboard/tabs/campaigns_tab.dart';
+import 'package:payviya_app/screens/campaigns/campaign_discovery_screen.dart';
 import 'package:payviya_app/screens/dashboard/tabs/cards_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/home_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/profile_tab.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
+
+  static final GlobalKey<_DashboardScreenState> globalKey = GlobalKey<_DashboardScreenState>();
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -18,7 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final List<Widget> _tabs = [
     const HomeTab(),
-    const CampaignsTab(),
+    const CampaignDiscoveryScreen(),
     const CardsTab(),
     const ProfileTab(),
   ];
@@ -29,7 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _onTabTapped(int index) {
+  void onTabTapped(int index) {
     setState(() {
       _currentIndex = index;
     });
@@ -45,54 +47,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       body: PageView(
         controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
         children: _tabs,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        physics: const NeverScrollableScrollPhysics(),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: onTabTapped,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppTheme.primaryColor,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Ana Sayfa',
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 12,
-              offset: const Offset(0, -3),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: _onTabTapped,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppTheme.primaryColor,
-          unselectedItemColor: AppTheme.textSecondaryColor,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(
-            fontSize: 12,
-                fontWeight: FontWeight.w600,
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_offer_outlined),
+            activeIcon: Icon(Icons.local_offer),
+            label: 'Kampanyalar',
           ),
-          unselectedLabelStyle: const TextStyle(
-                fontSize: 11,
-            fontWeight: FontWeight.w400,
+          BottomNavigationBarItem(
+            icon: Icon(Icons.credit_card_outlined),
+            activeIcon: Icon(Icons.credit_card),
+            label: 'Kartlarım',
           ),
-              backgroundColor: Colors.transparent,
-          elevation: 0,
-              items: [
-                _buildNavItem(Icons.home_outlined, Icons.home_rounded, 'Ana Sayfa'),
-                _buildNavItem(Icons.local_offer_outlined, Icons.local_offer_rounded, 'Kampanyalar'),
-                _buildNavItem(Icons.credit_card_outlined, Icons.credit_card_rounded, 'Kartlarım'),
-                _buildNavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profil'),
-              ],
-            ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profil',
           ),
-        ),
+        ],
       ),
       floatingActionButton: Container(
         height: 65,
@@ -128,20 +118,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-    );
-  }
-
-  BottomNavigationBarItem _buildNavItem(IconData icon, IconData activeIcon, String label) {
-    return BottomNavigationBarItem(
-      icon: Padding(
-        padding: const EdgeInsets.only(bottom: 4.0),
-        child: Icon(icon, size: 24),
-      ),
-      activeIcon: Padding(
-        padding: const EdgeInsets.only(bottom: 4.0),
-        child: Icon(activeIcon, size: 26),
-      ),
-      label: label,
     );
   }
 

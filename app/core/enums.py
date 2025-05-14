@@ -1,0 +1,12 @@
+from enum import Enum
+
+class CategoryEnum(str, Enum):
+    GROCERY = "GROCERY"
+    ELECTRONICS = "ELECTRONICS"
+    FASHION = "FASHION"
+    TRAVEL = "TRAVEL"
+    FUEL = "FUEL"
+    RESTAURANT = "RESTAURANT"
+    ENTERTAINMENT = "ENTERTAINMENT"
+    HEALTH = "HEALTH"
+    OTHER = "OTHER" 

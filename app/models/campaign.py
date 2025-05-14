@@ -1,42 +1,24 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, Text, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import enum
 
 from app.db.base import Base
+from app.models.enums import DiscountType, CampaignSource, CampaignStatus
 
 
-class CategoryEnum(str, enum.Enum):
-    ELECTRONICS = "electronics"
-    FASHION = "fashion"
-    GROCERY = "grocery"
-    TRAVEL = "travel"
-    RESTAURANT = "restaurant"
-    FUEL = "fuel"
-    ENTERTAINMENT = "entertainment"
-    OTHER = "other"
+class CampaignCategory(Base):
+    __tablename__ = "campaign_categories"
 
+    id = Column(Integer, primary_key=True, index=True)
+    enum = Column(String(50), nullable=False, unique=True)
+    name = Column(String(100), nullable=False)
+    icon_url = Column(String(512), nullable=True)
+    color = Column(String(20), nullable=True)  # Hex color code
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True)
 
-class DiscountType(str, enum.Enum):
-    PERCENTAGE = "percentage"
-    CASHBACK = "cashback"
-    POINTS = "points"
-    INSTALLMENT = "installment"
-
-
-class CampaignSource(str, enum.Enum):
-    MANUAL = "manual"           # Created manually in admin panel
-    BANK_API = "bank_api"       # Imported from bank API
-    FINTECH_API = "fintech_api" # Imported from fintech partners
-    PARTNER_API = "partner_api" # Imported from other partners
-
-
-class CampaignStatus(str, enum.Enum):
-    DRAFT = "draft"             # Newly created, not yet approved
-    PENDING = "pending"         # Pending approval (for imported campaigns)
-    APPROVED = "approved"       # Approved and active
-    REJECTED = "rejected"       # Rejected by admin
-    ARCHIVED = "archived"       # No longer active but kept for reference
+    # Relationships
+    campaigns = relationship("Campaign", back_populates="category")
 
 
 class Campaign(Base):
@@ -47,7 +29,7 @@ class Campaign(Base):
     description = Column(Text)
     bank_id = Column(Integer, ForeignKey("banks.id"))
     card_id = Column(Integer, ForeignKey("credit_cards.id"))
-    category = Column(Enum(CategoryEnum), nullable=False)
+    category_id = Column(Integer, ForeignKey("campaign_categories.id"), nullable=False)
     discount_type = Column(Enum(DiscountType), nullable=False)
     discount_value = Column(Float, nullable=False)
     min_amount = Column(Float, default=0)
@@ -75,6 +57,7 @@ class Campaign(Base):
     bank = relationship("Bank", back_populates="campaigns")
     credit_card = relationship("CreditCard", back_populates="campaigns")
     merchant = relationship("Merchant", back_populates="campaigns")
+    category = relationship("CampaignCategory", back_populates="campaigns")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 
@@ -131,8 +114,29 @@ class Merchant(Base):
     name = Column(String(255), nullable=False)
     categories = Column(String(255), nullable=False)  # Comma-separated categories
     logo_url = Column(String(512))
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    address = Column(String(512))
+    city = Column(String(100))
+    country = Column(String(100))
+    phone = Column(String(20))
+    website = Column(String(512))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    campaigns = relationship("Campaign", back_populates="merchant") 
+    campaigns = relationship("Campaign", back_populates="merchant")
+
+
+class ScrapedCampaign(Campaign):
+    __tablename__ = "scraped_campaigns"
+    
+    id = Column(Integer, ForeignKey("campaigns.id"), primary_key=True)
+    is_processed = Column(Boolean, default=False)
+    scrape_source = Column(Text)
+    scrape_attempted_at = Column(DateTime(timezone=True), server_default=func.now())
+    scrape_log = Column(Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'scraped_campaign',
+    } 

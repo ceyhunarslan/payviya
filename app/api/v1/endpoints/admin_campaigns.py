@@ -12,7 +12,7 @@ from app.schemas.campaign import (
     PendingCampaignRead,
     CampaignApproval
 )
-from app.api.deps import get_current_admin_user
+from app.api.v1.deps import get_current_admin_user
 
 router = APIRouter()
 

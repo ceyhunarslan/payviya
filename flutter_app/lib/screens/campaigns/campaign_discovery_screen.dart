@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/models/campaign.dart';
+import 'package:payviya_app/models/credit_card.dart';
 import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
 import 'package:payviya_app/services/api_service.dart';
+import 'package:payviya_app/services/campaign_service.dart';
+import 'package:payviya_app/widgets/campaign_template.dart';
+import 'package:payviya_app/widgets/loading_indicator.dart';
+import 'package:payviya_app/utils/logo_helper.dart';
+import 'package:payviya_app/widgets/user_avatar.dart';
+import 'package:payviya_app/widgets/notification_icon.dart';
+import 'package:payviya_app/services/user_service.dart';
 
 class CampaignDiscoveryScreen extends StatefulWidget {
   const CampaignDiscoveryScreen({super.key});
@@ -18,15 +26,43 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
   String _selectedFilter = 'Hepsi';
   bool _isLoading = true;
   String? _errorMessage;
+  String _userName = '';
+  String _userSurname = '';
+  
+  // Category data
+  List<Map<String, dynamic>> _categories = [];
+  String _selectedCategory = 'Tümü';
+  
+  // Credit card data
+  List<CreditCardListItem> _creditCards = [];
+  String _selectedCard = 'Tümü';
+  
+  final Map<String, IconData> _categoryIcons = {
+    'Tümü': Icons.all_inclusive,
+    'GROCERY': Icons.shopping_cart,
+    'TRAVEL': Icons.flight,
+    'ELECTRONICS': Icons.devices,
+    'FUEL': Icons.local_gas_station,
+    'ENTERTAINMENT': Icons.movie,
+    'FASHION': Icons.shopping_bag,
+    'RESTAURANT': Icons.restaurant,
+    'OTHER': Icons.more_horiz,
+  };
+  
+  final Map<String, String> _categoryDisplayNames = {
+    'Tümü': 'Tümü',
+    'GROCERY': 'Süpermarket',
+    'TRAVEL': 'Seyahat',
+    'ELECTRONICS': 'Elektronik',
+    'FUEL': 'Akaryakıt',
+    'ENTERTAINMENT': 'Eğlence',
+    'FASHION': 'Moda',
+    'RESTAURANT': 'Restoran',
+    'OTHER': 'Diğer',
+  };
   
   // Filters for campaigns
-  final List<String> _filters = [
-    'Hepsi', 
-    'Popüler', 
-    'Yeni', 
-    'Süre Biten', 
-    'Nakit İade'
-  ];
+  final List<String> _filters = ['Hepsi', 'Popüler', 'Yeni', 'Süre Biten', 'Nakit İade'];
   
   // Campaign data
   List<Campaign> _campaigns = [];
@@ -34,6 +70,9 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+    _loadCategories();
+    _loadCreditCards();
     _loadCampaigns();
   }
   
@@ -41,6 +80,81 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+  
+  Future<void> _loadUserData() async {
+    try {
+      final response = await ApiService.get('/users/me');
+      if (response != null) {
+        setState(() {
+          _userName = response['name'] ?? '';
+          _userSurname = response['surname'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
+  
+  Future<void> _loadCategories() async {
+    try {
+      final apiCategories = await ApiService.getCampaignCategories();
+      setState(() {
+        _categories = [
+          {
+            'name': 'Tümü',
+            'icon': _categoryIcons['Tümü'],
+            'display': 'Tümü',
+            'id': null,
+          },
+          ...apiCategories.map((category) => {
+            'name': category['name'],
+            'icon': _categoryIcons[category['enum']] ?? Icons.category,
+            'display': _categoryDisplayNames[category['enum']] ?? category['name'],
+            'id': category['id'],
+            'enum': category['enum'],
+            'icon_url': category['icon_url'],
+            'color': category['color'],
+          }).toList(),
+        ];
+      });
+    } catch (e) {
+      print('Error loading categories: $e');
+      setState(() {
+        _categories = [
+          {
+            'name': 'Tümü',
+            'icon': Icons.all_inclusive,
+            'display': 'Tümü',
+            'id': null,
+          },
+        ];
+      });
+    }
+  }
+  
+  Future<void> _loadCreditCards() async {
+    try {
+      final response = await ApiService.instance.dio.get('/credit-cards/');
+      
+      if (mounted) {
+        // Parse available cards
+        final cards = (response.data as List).map((card) => CreditCardListItem(
+          id: card['credit_card_id'],
+          creditCardId: card['credit_card_id'],
+          creditCardName: card['credit_card_name'],
+          creditCardLogoUrl: card['credit_card_logo_url'],
+          bankName: card['bank_name'],
+          bankLogoUrl: card['bank_logo_url'],
+        )).toList();
+
+        setState(() {
+          _creditCards = cards;
+        });
+      }
+    } catch (e) {
+      print('Error loading credit cards: $e');
+    }
   }
   
   // Load campaigns from API
@@ -90,29 +204,248 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     }
   }
   
-  // Filter campaigns based on selected filter
+  // Filter campaigns based on selected filter, category and card
   List<Campaign> _getFilteredCampaigns() {
+    var filteredCampaigns = _campaigns;
+    
+    // First apply category filter
+    if (_selectedCategory != 'Tümü') {
+      final selectedCategoryId = _categories
+          .firstWhere((cat) => cat['name'] == _selectedCategory)['id'] as int?;
+      
+      if (selectedCategoryId != null) {
+        filteredCampaigns = filteredCampaigns
+            .where((campaign) => campaign.categoryId == selectedCategoryId)
+            .toList();
+      }
+    }
+    
+    // Then apply card filter
+    if (_selectedCard != 'Tümü') {
+      final selectedCard = _creditCards.firstWhere((card) => card.creditCardName == _selectedCard);
+      filteredCampaigns = filteredCampaigns
+          .where((campaign) => campaign.creditCard?.id == selectedCard.creditCardId)
+          .toList();
+    }
+    
+    // Then apply type filter
     if (_selectedFilter == 'Hepsi') {
-      return _campaigns;
+      return filteredCampaigns;
     } else if (_selectedFilter == 'Popüler') {
-      return _campaigns.where((campaign) => campaign.priority > 5).toList();
+      return filteredCampaigns.where((campaign) => campaign.priority > 5).toList();
     } else if (_selectedFilter == 'Yeni') {
       final now = DateTime.now();
-      return _campaigns.where((campaign) => 
+      return filteredCampaigns.where((campaign) => 
         now.difference(campaign.createdAt).inDays < 7
       ).toList();
     } else if (_selectedFilter == 'Süre Biten') {
       final now = DateTime.now();
-      return _campaigns.where((campaign) => 
+      return filteredCampaigns.where((campaign) => 
         campaign.endDate.difference(now).inDays < 7 && !campaign.isExpired
       ).toList();
     } else if (_selectedFilter == 'Nakit İade') {
-      return _campaigns.where((campaign) => 
-        campaign.discountType == 'cashback'
+      return filteredCampaigns.where((campaign) => 
+        campaign.discountType == DiscountType.CASHBACK
       ).toList();
     }
     
-    return _campaigns;
+    return filteredCampaigns;
+  }
+
+  // Show category filter modal
+  void _showCategoryFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Kategori Seç',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  // Category list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isSelected = _selectedCategory == category['name'];
+                        
+                        return ListTile(
+                          leading: Icon(
+                            category['icon'] as IconData,
+                            color: isSelected ? AppTheme.primaryColor : Colors.grey,
+                          ),
+                          title: Text(
+                            category['display'] ?? category['name'],
+                            style: TextStyle(
+                              color: isSelected ? AppTheme.primaryColor : Colors.grey.shade700,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          trailing: isSelected ? const Icon(
+                            Icons.check_circle,
+                            color: AppTheme.primaryColor,
+                          ) : null,
+                          tileColor: isSelected ? AppTheme.primaryColor.withOpacity(0.1) : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = category['name'];
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  // Apply button
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      this.setState(() {}); // Refresh main screen
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'Uygula',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Show card filter modal
+  void _showCardFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Kart Seç',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  // Card list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _creditCards.length + 1, // +1 for "Tümü"
+                      itemBuilder: (context, index) {
+                        final isAll = index == 0;
+                        final card = isAll ? null : _creditCards[index - 1];
+                        final isSelected = isAll 
+                            ? _selectedCard == 'Tümü'
+                            : _selectedCard == (card!.creditCardName ?? 'Bilinmeyen Kart');
+                        
+                        return ListTile(
+                          leading: isAll 
+                              ? const Icon(Icons.credit_card)
+                              : (card!.bankLogoUrl != null
+                                  ? Image.network(
+                                      card.bankLogoUrl!,
+                                      width: 24,
+                                      height: 24,
+                                      errorBuilder: (context, error, stackTrace) => 
+                                          const Icon(Icons.credit_card),
+                                    )
+                                  : const Icon(Icons.credit_card)),
+                          title: Text(
+                            isAll ? 'Tümü' : (card!.creditCardName ?? 'Bilinmeyen Kart'),
+                            style: TextStyle(
+                              color: isSelected ? AppTheme.primaryColor : Colors.grey.shade700,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          trailing: isSelected ? const Icon(
+                            Icons.check_circle,
+                            color: AppTheme.primaryColor,
+                          ) : null,
+                          tileColor: isSelected ? AppTheme.primaryColor.withOpacity(0.1) : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedCard = isAll ? 'Tümü' : (card!.creditCardName ?? 'Bilinmeyen Kart');
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  // Apply button
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      this.setState(() {}); // Refresh main screen
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'Uygula',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -121,363 +454,230 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Kampanya ara...',
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  border: InputBorder.none,
-                ),
-                style: const TextStyle(color: Colors.black87, fontSize: 17),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-                onSubmitted: (value) {
-                  _searchCampaigns(value);
-                },
-              )
-            : const Text('Kampanyaları Keşfet'),
-        actions: [
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                if (_isSearching) {
-                  _searchController.clear();
-                  _searchQuery = '';
-                  _loadCampaigns();
-                }
-                _isSearching = !_isSearching;
-              });
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filter tabs
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  offset: const Offset(0, 2),
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _filters.length,
-              itemBuilder: (context, index) {
-                final filter = _filters[index];
-                final isSelected = _selectedFilter == filter;
-                
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedFilter = filter;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isSelected ? AppTheme.primaryColor : Colors.transparent,
-                          width: 3,
-                        ),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              floating: true,
+              pinned: false,
+              snap: true,
+              backgroundColor: Colors.white,
+              elevation: 0,
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  UserAvatar(
+                    name: _userName,
+                    surname: _userSurname,
+                    radius: 18,
+                    backgroundColor: AppTheme.primaryColor,
+                    textColor: Colors.white,
+                    fontSize: 16,
+                    enableTap: true,
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Kampanyalar',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimaryColor,
                       ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        filter,
-                        style: TextStyle(
-                          color: isSelected ? AppTheme.primaryColor : Colors.grey.shade700,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                );
-              },
+                  const NotificationIcon(),
+                ],
+              ),
             ),
-          ),
-          
-          // Campaign List
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : _errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline_rounded,
-                          size: 80,
-                          color: Colors.red.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Hata Oluştu',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            _errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _loadCampaigns,
-                          child: const Text('Tekrar Dene'),
-                        ),
-                      ],
-                    ),
-                  )
-                : filteredCampaigns.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search_off_rounded,
-                            size: 80,
-                            color: Colors.grey.shade300,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Kampanya bulunamadı',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Farklı bir arama yapmayı deneyin',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
+
+            // Search bar (if searching)
+            if (_isSearching)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Kampanya ara...',
+                      hintStyle: TextStyle(color: Colors.grey.shade400),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadCampaigns,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filteredCampaigns.length,
-                        itemBuilder: (context, index) {
-                          final campaign = filteredCampaigns[index];
-                          
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 2,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CampaignDetailScreen(campaignId: campaign.id),
-                                  ),
-                                );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Campaign header (bank logo, name, discount)
-                                    Row(
-                                      children: [
-                                        // Bank logo or placeholder
-                                        Container(
-                                          width: 40,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade100,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: campaign.bank?.logoUrl != null
-                                            ? Image.network(
-                                                campaign.bank!.logoUrl!,
-                                                errorBuilder: (context, error, stackTrace) => 
-                                                  Center(
-                                                    child: Text(
-                                                      campaign.bank!.name.substring(0, 1),
-                                                      style: TextStyle(
-                                                        color: AppTheme.primaryColor,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              )
-                                            : Center(
-                                                child: Text(
-                                                  campaign.bank?.name.substring(0, 1) ?? 'P',
-                                                  style: TextStyle(
-                                                    color: AppTheme.primaryColor,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        
-                                        // Campaign name and bank name
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                campaign.name,
-                                                style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              Text(
-                                                campaign.bank?.name ?? 'Unknown Bank',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey.shade600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        
-                                        // Discount badge
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.primaryColor,
-                                            borderRadius: BorderRadius.circular(30),
-                                          ),
-                                          child: Text(
-                                            campaign.formattedDiscount,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    
-                                    const SizedBox(height: 16),
-                                    
-                                    // Campaign description
-                                    Text(
-                                      campaign.description,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade800,
-                                      ),
-                                    ),
-                                    
-                                    const SizedBox(height: 16),
-                                    
-                                    // Campaign metadata (end date, category)
-                                    Row(
-                                      children: [
-                                        // End date
-                                        Icon(
-                                          Icons.access_time_rounded,
-                                          size: 16,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          campaign.timeRemaining,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                        
-                                        const SizedBox(width: 16),
-                                        
-                                        // Category
-                                        Icon(
-                                          Icons.category_outlined,
-                                          size: 16,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          campaign.category,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                        
-                                        const Spacer(),
-                                        
-                                        // Card name if available
-                                        if (campaign.creditCard != null)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade100,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              campaign.creditCard!.name,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade800,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                            _isSearching = false;
+                            _loadCampaigns();
+                          });
                         },
                       ),
                     ),
-          ),
-        ],
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                    onSubmitted: (value) {
+                      _searchCampaigns(value);
+                    },
+                  ),
+                ),
+              ),
+
+            // Category and card filters
+            SliverAppBar(
+              floating: false,
+              pinned: true,
+              backgroundColor: Colors.white,
+              elevation: 0,
+              automaticallyImplyLeading: false,
+              flexibleSpace: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _showCategoryFilterModal,
+                        icon: Icon(
+                          _categoryIcons[_selectedCategory] ?? Icons.category,
+                          size: 16,
+                          color: _selectedCategory != 'Tümü'
+                              ? AppTheme.primaryColor
+                              : Colors.grey,
+                        ),
+                        label: Text(
+                          _selectedCategory != 'Tümü'
+                              ? (_categoryDisplayNames[_selectedCategory] ?? _selectedCategory)
+                              : 'Kategori',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _selectedCategory != 'Tümü'
+                                ? AppTheme.primaryColor
+                                : Colors.grey,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _selectedCategory != 'Tümü'
+                              ? AppTheme.primaryColor
+                              : Colors.grey,
+                          side: BorderSide(
+                            color: _selectedCategory != 'Tümü'
+                                ? AppTheme.primaryColor
+                                : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _showCardFilterModal,
+                        icon: Icon(
+                          Icons.credit_card,
+                          size: 16,
+                          color: _selectedCard != 'Tümü'
+                              ? AppTheme.primaryColor
+                              : Colors.grey,
+                        ),
+                        label: Text(
+                          _selectedCard == 'Tümü' ? 'Kart' : _selectedCard,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _selectedCard != 'Tümü'
+                                ? AppTheme.primaryColor
+                                : Colors.grey,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _selectedCard != 'Tümü'
+                              ? AppTheme.primaryColor
+                              : Colors.grey,
+                          side: BorderSide(
+                            color: _selectedCard != 'Tümü'
+                                ? AppTheme.primaryColor
+                                : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Campaign list
+            _isLoading
+                ? const SliverFillRemaining(
+                    child: Center(child: LoadingIndicator()),
+                  )
+                : _errorMessage != null
+                    ? SliverFillRemaining(
+                        child: Center(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      )
+                    : filteredCampaigns.isEmpty
+                        ? SliverFillRemaining(
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.campaign_outlined,
+                                    size: 64,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Kampanya bulunamadı',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final campaign = filteredCampaigns[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+                                  child: CampaignTemplate(
+                                    campaign: campaign,
+                                    style: CampaignTemplateStyle.discover,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => CampaignDetailScreen(
+                                            campaign: campaign,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                              childCount: filteredCampaigns.length,
+                            ),
+                          ),
+          ],
+        ),
       ),
     );
   }

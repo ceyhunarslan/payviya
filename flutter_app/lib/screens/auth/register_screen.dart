@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
 import 'package:payviya_app/services/auth_service.dart';
+
+// Phone number formatter
+class _PhoneNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Eğer kullanıcı tüm metni siliyorsa, boş değer döndür
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    // Yeni değer 5 ile başlamıyorsa, otomatik olarak 5 ekle
+    String formattedText = newValue.text;
+    if (!formattedText.startsWith('5')) {
+      formattedText = '5' + formattedText;
+    }
+
+    // Maksimum 10 karakter olacak şekilde kes
+    if (formattedText.length > 10) {
+      formattedText = formattedText.substring(0, 10);
+    }
+
+    return TextEditingValue(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -18,6 +49,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController(text: '5'); // Initialize with 5
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
@@ -31,6 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -47,47 +80,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    if (_formKey.currentState!.validate() && _agreeToTerms) {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!_agreeToTerms) {
       setState(() {
-        _isLoading = true;
-        _errorMessage = null;
+        _errorMessage = "Kullanım koşullarını kabul etmelisiniz";
       });
+      return;
+    }
 
-      try {
-        // Actual API call for registration
-        await AuthService.register(
-          email: _emailController.text,
-          password: _passwordController.text,
-          name: _nameController.text,
-          surname: _surnameController.text,
-        );
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-        // After successful registration, log user in
-        await AuthService.login(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
-
-        // Navigate to dashboard after successful registration and login
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
-      } catch (e) {
-        setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
-        });
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } else if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kullanım koşullarını kabul etmelisiniz."),
-          backgroundColor: AppTheme.errorColor,
-        ),
+    try {
+      // Register the user
+      await AuthService.register(
+        name: _nameController.text,
+        surname: _surnameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        phoneNumber: _phoneController.text,
+        countryCode: '90',
       );
+
+      // After successful registration, log in
+      final user = await AuthService.login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (mounted) {
+        // Show welcome message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hoş geldiniz, ${user.name}!'),
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Navigate to dashboard
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
     }
   }
 
@@ -308,6 +354,81 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Phone number field
+                      Row(
+                        children: [
+                          Container(
+                            width: 80,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppTheme.dividerColor),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white,
+                            ),
+                            child: const Text(
+                              '+90',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppTheme.textPrimaryColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              style: const TextStyle(
+                                color: AppTheme.textPrimaryColor,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 16,
+                              ),
+                              decoration: InputDecoration(
+                                labelText: "Telefon",
+                                hintText: '5XXXXXXXXX',
+                                prefixIcon: const Icon(Icons.phone_outlined, color: AppTheme.primaryColor),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppTheme.primaryColor),
+                                ),
+                              ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(10),
+                                _PhoneNumberFormatter(),
+                              ],
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return "Telefon numarası gerekli";
+                                }
+                                if (value.length != 10) {
+                                  return "Telefon numarası 10 haneli olmalıdır";
+                                }
+                                if (!value.startsWith('5')) {
+                                  return "Telefon numarası 5 ile başlamalıdır";
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
 

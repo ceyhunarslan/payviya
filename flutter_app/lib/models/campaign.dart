@@ -1,48 +1,237 @@
+enum DiscountType {
+  PERCENTAGE,
+  CASHBACK,
+  POINTS,
+  FIXED
+}
+
+enum CampaignSource {
+  MANUAL,
+  AUTOMATIC,
+  API
+}
+
 class Campaign {
   final int id;
   final String name;
-  final String description;
-  final int bankId;
-  final int cardId;
+  final String _description;
   final String category;
-  final String discountType;
-  final double discountValue;
+  final String? categoryName;
+  final int? categoryId;
+  final DiscountType? discountType;
+  final double? discountValue;
   final double minAmount;
   final double? maxDiscount;
   final DateTime startDate;
   final DateTime endDate;
+  final DateTime createdAt;
+  final int priority;
   final int? merchantId;
   final bool isActive;
-  final bool requiresEnrollment;
-  final String? enrollmentUrl;
-  final String source;
-  final String status;
-  final String? externalId;
-  final int priority;
-  final DateTime? lastSyncAt;
-  final String? reviewNotes;
-  final int? reviewedBy;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
-  
-  // Related entity data
   final Bank? bank;
   final CreditCard? creditCard;
+  final bool requiresEnrollment;
+  final String? enrollmentUrl;
   final Merchant? merchant;
-  
-  // UI helper properties
-  String get formattedDiscount {
-    if (discountType == 'percentage') {
-      return '%${discountValue.toStringAsFixed(0)}';
-    } else if (discountType == 'cashback') {
-      return '${discountValue.toStringAsFixed(0)} TL Geri Ödeme';
-    } else if (discountType == 'points') {
-      return '${discountValue.toStringAsFixed(0)} Puan';
-    } else {
-      return '${discountValue.toStringAsFixed(0)} TL İndirim';
+  final CampaignSource source;
+
+  Campaign({
+    required this.id,
+    required this.name,
+    required String description,
+    required this.category,
+    this.categoryName,
+    this.categoryId,
+    this.discountType,
+    this.discountValue,
+    this.minAmount = 0.0,
+    this.maxDiscount,
+    required this.startDate,
+    required this.endDate,
+    required this.createdAt,
+    required this.priority,
+    this.merchantId,
+    required this.isActive,
+    this.bank,
+    this.creditCard,
+    required this.requiresEnrollment,
+    this.enrollmentUrl,
+    this.merchant,
+    this.source = CampaignSource.MANUAL,
+  }) : _description = description;
+
+  factory Campaign.fromJson(Map<String, dynamic> json) {
+    try {
+      print('JSON data: $json');
+      
+      // Handle bank object
+      Bank? bank;
+      if (json['bank'] is Map) {
+        bank = Bank.fromJson(json['bank'] as Map<String, dynamic>);
+      } else if (json['bank_id'] != null) {
+        bank = Bank(
+          id: json['bank_id'] as int,
+          name: json['bank_name'] as String? ?? 'Unknown Bank',
+          logoUrl: null,
+        );
+      }
+      
+      // Handle credit card object
+      CreditCard? creditCard;
+      if (json['credit_card'] is Map) {
+        creditCard = CreditCard.fromJson(json['credit_card'] as Map<String, dynamic>);
+      } else if (json['card_id'] != null) {
+        creditCard = CreditCard(
+          id: json['card_id'] as int,
+          name: json['card_name'] as String? ?? 'Unknown Card',
+          bankId: json['bank_id'] as int,
+          cardType: 'unknown',
+          cardTier: 'standard',
+          applicationUrl: json['credit_card_application_url'] as String?,
+          isActive: true,
+        );
+      }
+      
+      // Handle merchant object
+      Merchant? merchant;
+      if (json['merchant'] is Map) {
+        try {
+          final merchantData = json['merchant'] as Map<String, dynamic>;
+          merchant = Merchant(
+            id: merchantData['id'] as int? ?? 0,
+            name: merchantData['name'] as String? ?? 'Unknown Merchant',
+            categories: merchantData['categories'] as String? ?? '',
+            logoUrl: merchantData['logo_url'] as String? ?? '',
+          );
+        } catch (e) {
+          print('Error parsing merchant data: $e');
+          // Create a default merchant if parsing fails
+          merchant = Merchant(
+            id: json['merchant_id'] as int? ?? 0,
+            name: 'Unknown Merchant',
+            categories: '',
+            logoUrl: null,
+          );
+        }
+      } else if (json['merchant_id'] != null) {
+        merchant = Merchant(
+          id: json['merchant_id'] as int? ?? 0,
+          name: json['merchant_name'] as String? ?? 'Unknown Merchant',
+          categories: '',
+          logoUrl: null,
+        );
+      }
+
+      // Parse discount type
+      DiscountType? discountType;
+      if (json['discount_type'] != null) {
+        try {
+          String discountTypeStr = (json['discount_type'] as String? ?? '')
+            .replaceFirst('DISCOUNTTYPE.', '') // Remove prefix if exists
+            .replaceFirst('DiscountType.', ''); // Remove another possible prefix
+          discountType = DiscountType.values.firstWhere(
+            (e) => e.toString().split('.').last == discountTypeStr,
+            orElse: () => DiscountType.PERCENTAGE
+          );
+        } catch (e) {
+          print('Error parsing discount type: $e');
+          discountType = DiscountType.PERCENTAGE;
+        }
+      }
+      
+      // Parse source with default value
+      CampaignSource source = CampaignSource.MANUAL;  // Default value
+      if (json['source'] != null) {
+        try {
+          String sourceStr = (json['source'] as String? ?? '')
+            .replaceFirst('CAMPAIGNSOURCE.', '') // Remove prefix if exists
+            .replaceFirst('CampaignSource.', ''); // Remove another possible prefix
+          source = CampaignSource.values.firstWhere(
+            (e) => e.toString().split('.').last == sourceStr,
+            orElse: () => CampaignSource.MANUAL
+          );
+        } catch (e) {
+          print('Error parsing source: $e');
+          source = CampaignSource.MANUAL;
+        }
+      }
+      
+      // Handle dates directly as DateTime objects
+      final startDate = DateTime.parse(json['startDate'] ?? json['start_date']);
+      final endDate = DateTime.parse(json['endDate'] ?? json['end_date']);
+      final createdAt = DateTime.parse(json['createdAt'] ?? json['created_at']);
+
+      return Campaign(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        description: json['description'] as String,
+        category: (json['category'] as String?) ?? 'Genel',
+        categoryName: json['campaign_category_name'] as String?,
+        categoryId: json['category_id'] as int?,
+        discountType: discountType,
+        discountValue: (json['discount_value'] as num?)?.toDouble(),
+        minAmount: (json['min_amount'] as num?)?.toDouble() ?? 0.0,
+        maxDiscount: (json['max_discount'] as num?)?.toDouble(),
+        startDate: startDate,
+        endDate: endDate,
+        createdAt: createdAt,
+        priority: json['priority'] as int? ?? 0,
+        merchantId: json['merchant_id'] as int?,
+        isActive: json['is_active'] as bool? ?? true,
+        bank: bank,
+        creditCard: creditCard,
+        requiresEnrollment: json['requires_enrollment'] as bool? ?? false,
+        enrollmentUrl: json['enrollment_url'] as String?,
+        merchant: merchant,
+        source: source,
+      );
+    } catch (e, stackTrace) {
+      print('Error parsing campaign JSON: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
     }
   }
-  
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': _description,
+      'category': category,
+      'categoryName': categoryName,
+      'categoryId': categoryId,
+      'discountType': discountType?.toString().split('.').last, // Remove enum prefix
+      'discountValue': discountValue,
+      'minAmount': minAmount,
+      'maxDiscount': maxDiscount,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'priority': priority,
+      'merchantId': merchantId,
+      'isActive': isActive,
+      'bank': bank?.toJson(),
+      'creditCard': creditCard?.toJson(),
+      'requiresEnrollment': requiresEnrollment,
+      'enrollmentUrl': enrollmentUrl,
+      'merchant': merchant?.toJson(),
+      'source': source.toString().split('.').last, // Remove enum prefix
+    };
+  }
+
+  // UI helper properties
+  String get formattedDiscount {
+    if (discountType == DiscountType.PERCENTAGE) {
+      return '%${discountValue?.toStringAsFixed(0) ?? '0'}';
+    } else if (discountType == DiscountType.CASHBACK) {
+      return '${discountValue?.toStringAsFixed(0) ?? '0'} TL';
+    } else if (discountType == DiscountType.POINTS) {
+      return '${discountValue?.toStringAsFixed(0) ?? '0'} Puan';
+    } else {
+      return '${discountValue?.toStringAsFixed(0) ?? '0'} TL İndirim';
+    }
+  }
+
   String get timeRemaining {
     final difference = endDate.difference(DateTime.now());
     if (difference.inDays > 0) {
@@ -55,91 +244,14 @@ class Campaign {
       return 'Süresi doldu';
     }
   }
-  
+
   bool get isExpired => DateTime.now().isAfter(endDate);
+
+  String get description => _description;
   
-  Campaign({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.bankId,
-    required this.cardId,
-    required this.category,
-    required this.discountType,
-    required this.discountValue,
-    required this.minAmount,
-    this.maxDiscount,
-    required this.startDate,
-    required this.endDate,
-    this.merchantId,
-    required this.isActive,
-    required this.requiresEnrollment,
-    this.enrollmentUrl,
-    required this.source,
-    required this.status,
-    this.externalId,
-    required this.priority,
-    this.lastSyncAt,
-    this.reviewNotes,
-    this.reviewedBy,
-    required this.createdAt,
-    this.updatedAt,
-    this.bank,
-    this.creditCard,
-    this.merchant,
-  });
-  
-  factory Campaign.fromJson(Map<String, dynamic> json) {
-    // Handle potential nulls and different data types
-    
-    // Special handling for source field to match enum values in server
-    String sourceValue = json['source'] ?? 'MANUAL';
-    // Keep uppercase - the API now uses uppercase enum values
-    
-    return Campaign(
-      id: json['id'],
-      name: json['name'] ?? 'Unnamed Campaign',
-      description: json['description'] ?? '',
-      bankId: json['bank_id'] ?? 0,
-      cardId: json['card_id'] ?? 0,
-      category: json['category'] ?? 'Uncategorized',
-      discountType: json['discount_type'] ?? 'other',
-      discountValue: (json['discount_value'] ?? 0).toDouble(),
-      minAmount: (json['min_amount'] ?? 0).toDouble(),
-      maxDiscount: json['max_discount'] != null ? (json['max_discount']).toDouble() : null,
-      startDate: json['start_date'] != null 
-          ? DateTime.parse(json['start_date'])
-          : DateTime.now(),
-      endDate: json['end_date'] != null
-          ? DateTime.parse(json['end_date'])
-          : DateTime.now().add(const Duration(days: 30)),
-      merchantId: json['merchant_id'],
-      isActive: json['is_active'] ?? true,
-      requiresEnrollment: json['requires_enrollment'] ?? false,
-      enrollmentUrl: json['enrollment_url'],
-      source: sourceValue,
-      status: json['status'] ?? 'approved',
-      externalId: json['external_id']?.toString(),
-      priority: json['priority'] ?? 0,
-      lastSyncAt: json['last_sync_at'] != null 
-          ? DateTime.parse(json['last_sync_at'])
-          : null,
-      reviewNotes: json['review_notes'],
-      reviewedBy: json['reviewed_by'],
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null 
-          ? DateTime.parse(json['updated_at'])
-          : null,
-      bank: json['bank'] != null ? Bank.fromJson(json['bank']) : null,
-      creditCard: json['credit_card'] != null 
-          ? CreditCard.fromJson(json['credit_card'])
-          : null,
-      merchant: json['merchant'] != null 
-          ? Merchant.fromJson(json['merchant'])
-          : null,
-    );
+  String get trimmedDescription {
+    if (_description.length <= 100) return _description;
+    return '${_description.substring(0, 100)}...';
   }
 }
 
@@ -160,6 +272,14 @@ class Bank {
       name: json['name'] ?? 'Unknown Bank',
       logoUrl: json['logo_url'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'logo_url': logoUrl,
+    };
   }
 }
 
@@ -205,6 +325,22 @@ class CreditCard {
       isActive: json['is_active'] ?? true,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'bank_id': bankId,
+      'card_type': cardType,
+      'card_tier': cardTier,
+      'annual_fee': annualFee,
+      'rewards_rate': rewardsRate,
+      'application_url': applicationUrl,
+      'affiliate_code': affiliateCode,
+      'logo_url': logoUrl,
+      'is_active': isActive,
+    };
+  }
 }
 
 class Merchant {
@@ -227,5 +363,14 @@ class Merchant {
       categories: json['categories'] ?? '',
       logoUrl: json['logo_url'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'categories': categories,
+      'logo_url': logoUrl,
+    };
   }
 } 

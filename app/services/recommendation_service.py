@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-from app.models.campaign import Campaign, CreditCard, Bank, CategoryEnum
+from app.models.campaign import Campaign, CreditCard, Bank, CampaignCategory
 from app.models.user import Recommendation, RecommendationClick, User
 from app.schemas.recommendation import RecommendationRequest, CardRecommendation, RecommendationResponse
 
@@ -34,12 +35,12 @@ class RecommendationService:
         
         # Filter by category if provided
         if cart_category:
-            try:
-                category_enum = CategoryEnum(cart_category.lower())
-                query = query.filter(Campaign.category == category_enum)
-            except ValueError:
-                # If not a valid enum, try to match string
-                pass
+            # Try to find matching category in the database
+            category = self.db.query(CampaignCategory).filter(
+                CampaignCategory.name.ilike(f"%{cart_category}%")
+            ).first()
+            if category:
+                query = query.filter(Campaign.category_id == category.id)
         
         # Filter by merchant if provided
         if merchant_name:
@@ -97,6 +98,7 @@ class RecommendationService:
             card_id=card.id,
             card_name=card.name,
             bank_name=bank.name,
+            category_name=campaign.category.name if campaign.category else "Uncategorized",
             discount_type=campaign.discount_type,
             discount_value=campaign.discount_value,
             final_amount=calculation["final_amount"],

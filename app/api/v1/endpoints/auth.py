@@ -11,9 +11,21 @@ from app.core import security
 from app.core.config import settings
 from app.models.user import User
 from app.utils.password import get_password_hash, verify_password
+from app.utils.email import send_reset_password_email
+from pydantic import BaseModel, EmailStr
+import secrets
 
 router = APIRouter()
 
+# Password reset token storage (In production, use Redis or similar)
+password_reset_tokens = {}
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
 
 @router.post("/register", response_model=schemas.User)
 def register_user(
@@ -69,4 +81,80 @@ def login_access_token(
             user.id, expires_delta=access_token_expires
         ),
         "token_type": "bearer",
-    } 
+    }
+
+@router.post("/password-reset/request")
+async def request_password_reset(
+    reset_request: PasswordResetRequest,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Password reset step 1: Request a password reset
+    """
+    user = db.query(User).filter(User.email == reset_request.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı",
+        )
+    
+    # Generate a secure token
+    reset_token = secrets.token_urlsafe(32)
+    
+    # Store the token with the user ID (In production, use Redis with expiration)
+    password_reset_tokens[reset_token] = {
+        "user_id": user.id,
+        "email": user.email,
+    }
+    
+    # Generate the reset link with custom URL scheme for development
+    reset_link = f"payviya://reset-password?token={reset_token}"
+    
+    # Send the reset email
+    try:
+        await send_reset_password_email(
+            email_to=user.email,
+            reset_link=reset_link,
+            user_name=user.name,
+        )
+    except Exception as e:
+        print(f"Error sending reset email: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="E-posta gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+        )
+    
+    return {"message": "Şifre yenileme bağlantısı e-posta adresinize gönderildi"}
+
+@router.post("/password-reset/confirm")
+async def confirm_password_reset(
+    reset_confirm: PasswordResetConfirm,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Password reset step 2: Confirm and set new password
+    """
+    # Check if token exists
+    token_data = password_reset_tokens.get(reset_confirm.token)
+    if not token_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Geçersiz veya süresi dolmuş token",
+        )
+    
+    # Get user
+    user = db.query(User).filter(User.id == token_data["user_id"]).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="Kullanıcı bulunamadı",
+        )
+    
+    # Update password
+    user.hashed_password = get_password_hash(reset_confirm.new_password)
+    db.commit()
+    
+    # Remove used token
+    password_reset_tokens.pop(reset_confirm.token)
+    
+    return {"message": "Şifreniz başarıyla güncellendi"} 

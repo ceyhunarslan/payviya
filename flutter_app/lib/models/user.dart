@@ -6,7 +6,8 @@ class User {
   final bool isActive;
   final bool isAdmin;
   final DateTime? createdAt;
-  final String? phone;
+  final String? phoneNumber;
+  final String? countryCode;
   final String? profileImage;
 
   User({
@@ -17,7 +18,8 @@ class User {
     required this.isActive,
     this.isAdmin = false,
     this.createdAt,
-    this.phone,
+    this.phoneNumber,
+    this.countryCode,
     this.profileImage,
   });
 
@@ -43,7 +45,8 @@ class User {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : null,
-      phone: json['phone'],
+      phoneNumber: json['phone_number'],
+      countryCode: json['country_code'],
       profileImage: json['profile_image'],
     );
   }
@@ -58,7 +61,8 @@ class User {
       'is_active': isActive,
       'is_admin': isAdmin,
       'created_at': createdAt?.toIso8601String(),
-      'phone': phone,
+      'phone_number': phoneNumber,
+      'country_code': countryCode,
       'profile_image': profileImage,
     };
   }
