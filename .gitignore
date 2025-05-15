@@ -1,16 +1,39 @@
 # Python and Flutter gitignore file
+
 # Python
 __pycache__/
 *.py[cod]
 .env
 venv/
+*.pyc
+
 # Flutter
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
+build/
+.pub/
+.pub-cache/
 .DS_Store
+*.iml
+*.lock
+.idea/
+.vscode/
+*.log
+ios/Flutter/.last_build_id
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
 # Project structure
 /clean/
 /ios_app/
 /mobile_app/
 /venv/
+/backup/
+*.bak

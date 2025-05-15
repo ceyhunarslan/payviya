@@ -3,7 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:payviya_app/models/campaign.dart';
 import 'package:payviya_app/services/campaign_service.dart';
-import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
+import 'package:payviya_app/services/navigation_service.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 
@@ -160,16 +160,12 @@ class PushNotificationService {
       final campaign = await CampaignService.getCampaignById(campaignId);
       print('Campaign details fetched: ${campaign.name}');
       
-      // Navigate to campaign detail screen
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (context) => CampaignDetailScreen(campaign: campaign),
-        ),
-      );
-      
-      print('Navigation completed');
-    } catch (e) {
+      // Use NavigationService for navigation
+      await NavigationService.navigateToCampaignDetail(campaign);
+      print('Navigation completed using NavigationService');
+    } catch (e, stackTrace) {
       print('Error handling notification tap: $e');
+      print('Stack trace: $stackTrace');
     }
   }
 }

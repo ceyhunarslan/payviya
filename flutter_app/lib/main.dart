@@ -5,6 +5,9 @@ import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/screens/splash/splash_screen.dart';
 import 'package:payviya_app/screens/auth/login_screen.dart';
 import 'package:payviya_app/screens/dashboard/tabs/profile_tab.dart';
+import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
+import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
+import 'package:payviya_app/services/navigation_service.dart';
 
 // Environment configuration
 const String API_BASE_URL = String.fromEnvironment(
@@ -15,6 +18,7 @@ const String API_BASE_URL = String.fromEnvironment(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  
   runApp(const PayViyaApp());
 }
 
@@ -26,14 +30,21 @@ class PayViyaApp extends StatelessWidget {
     return MaterialApp(
       title: 'PayViya',
       debugShowCheckedModeBanner: false,
+      navigatorKey: NavigationService.navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const SplashScreen(),
+      initialRoute: '/',
       routes: {
+        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/profile': (context) => const ProfileTab(),
+        '/dashboard': (context) => const DashboardScreen(),
+        '/campaign-detail': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return CampaignDetailScreen(campaign: args?['campaign']);
+        },
       },
     );
   }
