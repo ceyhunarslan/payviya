@@ -1,13 +1,15 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from datetime import datetime
 from pydantic import BaseModel
 from app.db.base import get_db
-from app.api.deps import oauth2_scheme
+from app.api.deps import oauth2_scheme, get_current_user
 from app.models.campaign import Campaign, Merchant, Bank, CreditCard, CampaignCategory
+from app.models.notification import NotificationHistory
 from app.services.osm_service import OSMService
+import hashlib
 
 router = APIRouter()
 
@@ -27,15 +29,56 @@ class Business(BaseModel):
     class Config:
         from_attributes = True
 
+def _generate_location_hash(latitude: float, longitude: float) -> str:
+    """Generate a hash for the given location coordinates"""
+    location_str = f"{latitude},{longitude}"
+    return hashlib.md5(location_str.encode()).hexdigest()[:50]
+
+def check_campaign_notification_eligibility(
+    db: Session,
+    user_id: int,
+    campaign_id: int,
+    latitude: float,
+    longitude: float,
+) -> bool:
+    """
+    Check if a campaign is eligible for notification based on various rules:
+    - Has not been sent to the user at the same location today
+    - Any other business rules can be added here
+    
+    Returns:
+        bool: True if the campaign is eligible for notification, False otherwise
+    """
+    try:
+        # Generate location hash
+        location_hash = _generate_location_hash(latitude, longitude)
+        
+        # Check if notification was already sent today
+        today = datetime.now().date()
+        notification = db.query(NotificationHistory).filter(
+            NotificationHistory.user_id == user_id,
+            NotificationHistory.campaign_id == campaign_id,
+            NotificationHistory.location_hash == location_hash,
+            NotificationHistory.sent_date == today
+        ).first()
+        
+        # Campaign is eligible if no notification was sent today
+        return notification is None
+        
+    except Exception as e:
+        print(f"Error checking campaign eligibility: {str(e)}")
+        return False  # Default to ineligible on error
+
 @router.post("/nearby-campaigns", response_model=List[Business])
 async def get_nearby_businesses_with_campaigns(
     location: LocationRequest,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_user = Depends(get_current_user)
 ):
     """
     Get businesses with active campaigns near the specified location.
     Uses both OpenStreetMap data and database merchants.
+    Only returns campaigns that are eligible for notification.
     """
     try:
         # Get current time for campaign validity check
@@ -74,9 +117,19 @@ async def get_nearby_businesses_with_campaigns(
                     processed_merchants.add(merchant.id)
                     merchant_campaigns = [c for c, cat in active_campaigns if c.merchant_id == merchant.id]
                     
-                    # Format campaigns
+                    # Format campaigns and check eligibility
                     campaign_list = []
                     for camp in merchant_campaigns:
+                        # Check if this campaign is eligible for notification
+                        if not check_campaign_notification_eligibility(
+                            db=db,
+                            user_id=current_user.id,
+                            campaign_id=camp.id,
+                            latitude=location.latitude,
+                            longitude=location.longitude
+                        ):
+                            continue  # Skip ineligible campaigns
+                            
                         campaign_dict = {
                             "id": camp.id,
                             "name": camp.name,
@@ -88,19 +141,22 @@ async def get_nearby_businesses_with_campaigns(
                             "bank": camp.bank.name if camp.bank else None,
                             "card": camp.credit_card.name if camp.credit_card else None,
                             "requires_enrollment": camp.requires_enrollment,
-                            "enrollment_url": camp.enrollment_url
+                            "enrollment_url": camp.enrollment_url,
+                            "category_id": camp.category_id
                         }
                         campaign_list.append(campaign_dict)
 
-                    business = {
-                        "id": str(merchant.id),
-                        "name": merchant.name,
-                        "type": merchant.categories.split(',')[0] if merchant.categories else "OTHER",
-                        "latitude": float(merchant.latitude),
-                        "longitude": float(merchant.longitude),
-                        "active_campaigns": campaign_list
-                    }
-                    result.append(business)
+                    # Only add business if it has eligible campaigns
+                    if campaign_list:
+                        business = {
+                            "id": str(merchant.id),
+                            "name": merchant.name,
+                            "type": merchant.categories.split(',')[0] if merchant.categories else "OTHER",
+                            "latitude": float(merchant.latitude),
+                            "longitude": float(merchant.longitude),
+                            "active_campaigns": campaign_list
+                        }
+                        result.append(business)
 
         # Create a map of non-merchant campaigns by category
         category_campaigns = {}
@@ -121,9 +177,19 @@ async def get_nearby_businesses_with_campaigns(
             if not matching_campaigns:
                 continue
 
-            # Format campaigns
+            # Format campaigns and check eligibility
             campaign_list = []
             for campaign in matching_campaigns:
+                # Check if this campaign is eligible for notification
+                if not check_campaign_notification_eligibility(
+                    db=db,
+                    user_id=current_user.id,
+                    campaign_id=campaign.id,
+                    latitude=location.latitude,
+                    longitude=location.longitude
+                ):
+                    continue  # Skip ineligible campaigns
+                    
                 campaign_dict = {
                     "id": campaign.id,
                     "name": campaign.name,
@@ -135,19 +201,22 @@ async def get_nearby_businesses_with_campaigns(
                     "bank": campaign.bank.name if campaign.bank else None,
                     "card": campaign.credit_card.name if campaign.credit_card else None,
                     "requires_enrollment": campaign.requires_enrollment,
-                    "enrollment_url": campaign.enrollment_url
+                    "enrollment_url": campaign.enrollment_url,
+                    "category_id": campaign.category_id
                 }
                 campaign_list.append(campaign_dict)
 
-            business = {
-                "id": osm_business["id"],
-                "name": osm_business["name"],
-                "type": business_type,
-                "latitude": float(osm_business["latitude"]),
-                "longitude": float(osm_business["longitude"]),
-                "active_campaigns": campaign_list
-            }
-            result.append(business)
+            # Only add business if it has eligible campaigns
+            if campaign_list:
+                business = {
+                    "id": osm_business["id"],
+                    "name": osm_business["name"],
+                    "type": business_type,
+                    "latitude": float(osm_business["latitude"]),
+                    "longitude": float(osm_business["longitude"]),
+                    "active_campaigns": campaign_list
+                }
+                result.append(business)
 
         return result
 

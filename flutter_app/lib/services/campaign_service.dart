@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:payviya_app/models/campaign.dart';
 import 'package:payviya_app/services/api_service.dart';
 import 'package:payviya_app/services/auth_service.dart';
+import 'package:payviya_app/services/user_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 import '../models/business.dart';
@@ -9,7 +10,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 class CampaignService {
   static final CampaignService instance = CampaignService._internal();
-  bool _isInitialized = false;
+  static bool _isInitialized = false;
   static const int NEARBY_RADIUS_METERS = 50; // Reduced from 100 to 50 meters
 
   CampaignService._internal();
@@ -18,7 +19,7 @@ class CampaignService {
     return instance;
   }
 
-  Future<void> initialize() async {
+  static Future<void> initialize() async {
     if (_isInitialized) return;
     
     try {
@@ -188,9 +189,9 @@ class CampaignService {
     }
   }
 
-  Future<List<Business>> getNearbyBusinessesWithCampaigns(Position userLocation) async {
+  static Future<List<Business>> getNearbyBusinessesWithCampaigns(Position userLocation) async {
     if (!_isInitialized) {
-      throw Exception('Campaign service not initialized');
+      await initialize();
     }
 
     try {
@@ -234,51 +235,44 @@ class CampaignService {
     }
   }
 
-  Future<void> checkAndNotifyNearbyCampaigns(Position userLocation) async {
+  static Future<void> checkAndNotifyNearbyCampaigns(Position position) async {
     if (!_isInitialized) {
-      print('Initializing campaign service...');
       await initialize();
     }
 
     try {
-      print('Fetching nearby businesses for location: ${userLocation.latitude}, ${userLocation.longitude}');
-      final businesses = await getNearbyBusinessesWithCampaigns(userLocation);
+      final businesses = await getNearbyBusinessesWithCampaigns(position);
       
       if (businesses.isEmpty) {
-        print('No nearby businesses found within ${NEARBY_RADIUS_METERS}m radius');
+        print('No nearby businesses with campaigns found');
         return;
       }
 
-      print('Found ${businesses.length} nearby businesses');
-      
-      // Sort businesses by distance and log details
+      // Sort businesses by distance
       businesses.sort((a, b) {
         final distanceA = Geolocator.distanceBetween(
-          userLocation.latitude,
-          userLocation.longitude,
+          position.latitude,
+          position.longitude,
           a.latitude,
           a.longitude,
         );
         final distanceB = Geolocator.distanceBetween(
-          userLocation.latitude,
-          userLocation.longitude,
+          position.latitude,
+          position.longitude,
           b.latitude,
           b.longitude,
         );
         return distanceA.compareTo(distanceB);
       });
 
-      // Get the nearest business with active campaigns
-      final nearestBusiness = businesses.first;
-      print('Nearest business: ${nearestBusiness.name} (${nearestBusiness.id})');
-      print('Active campaigns count: ${nearestBusiness.activeCampaigns.length}');
-      
-      if (nearestBusiness.activeCampaigns.isEmpty) {
-        print('Nearest business has no active campaigns');
+      // Get current user
+      final currentUser = await UserService.getCurrentUser();
+      if (currentUser == null) {
+        print('⚠️ Current user not found - cannot send notification');
         return;
       }
 
-      // Get current FCM token with error handling
+      // Get FCM token
       String? fcmToken;
       try {
         fcmToken = await FirebaseMessaging.instance.getToken();
@@ -287,41 +281,90 @@ class CampaignService {
         print('Error getting FCM token: $e');
         return;
       }
-      
+
       if (fcmToken == null) {
         print('⚠️ FCM token is null - cannot send notification');
         return;
       }
 
-      // Prepare notification payload
-      final campaign = nearestBusiness.activeCampaigns.first;
-      final notificationPayload = {
-        'title': 'Yakınlarında Fırsat Var! 🎉',
-        'body': '${nearestBusiness.name}: ${campaign.description}',
-        'businessId': nearestBusiness.id.toString(),
-        'campaignId': campaign.id.toString(),
-        'fcm_token': fcmToken,
-        'type': 'NEARBY_CAMPAIGN',
-        'data': {
-          'businessId': nearestBusiness.id.toString(),
-          'campaignId': campaign.id.toString(),
-          'type': 'NEARBY_CAMPAIGN'
+      // Try each business until we successfully send a notification
+      bool notificationSent = false;
+      for (var business in businesses) {
+        if (business.activeCampaigns.isEmpty) {
+          print('Skipping business ${business.name} - no active campaigns');
+          continue;
         }
-      };
 
-      print('Sending notification request with payload: $notificationPayload');
+        print('\n📍 Checking campaigns for business: ${business.name}');
+        final distance = Geolocator.distanceBetween(
+          position.latitude,
+          position.longitude,
+          business.latitude,
+          business.longitude,
+        );
+        print('Distance to business: ${distance.toStringAsFixed(2)} meters');
 
-      // Send push notification request to backend
-      final response = await ApiService.instance.dio.post('/notifications/send', data: notificationPayload);
+        // Sort campaigns by priority
+        final sortedCampaigns = List<Campaign>.from(business.activeCampaigns)
+          ..sort((a, b) => b.priority.compareTo(a.priority));
 
-      if (response.data == null) {
-        print('Failed to send notification: No response from server');
-      } else {
-        print('Notification sent successfully: ${response.data}');
+        print('Found ${sortedCampaigns.length} campaigns, sorted by priority');
+
+        // Try each campaign for this business
+        for (var campaign in sortedCampaigns) {
+          print('\n🎯 Trying campaign: ${campaign.name} (Priority: ${campaign.priority})');
+          
+          // Prepare notification payload
+          final notificationPayload = {
+            'title': 'Yakınlarında Fırsat Var! 🎉',
+            'body': '${business.name}: ${campaign.description}',
+            'user_id': currentUser.id,
+            'merchant_id': business.id,
+            'campaign_id': campaign.id,
+            'category_id': campaign.categoryId ?? 1,
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'fcm_token': fcmToken,
+            'type': 'NEARBY_CAMPAIGN',
+            'data': {
+              'businessId': business.id.toString(),
+              'campaignId': campaign.id.toString(),
+              'type': 'NEARBY_CAMPAIGN'
+            }
+          };
+
+          // Send notification to backend
+          try {
+            print('Sending notification request to backend...');
+            final response = await ApiService.instance.dio.post('/notifications/send', data: notificationPayload);
+            
+            if (response.data == null) {
+              print('❌ Failed to send notification: No response from server');
+              continue;
+            }
+
+            print('✅ Notification sent successfully!');
+            notificationSent = true;
+            break; // Exit the campaign loop for this business
+          } catch (e) {
+            print('❌ Error sending notification to backend: $e');
+            continue;
+          }
+        }
+
+        if (notificationSent) {
+          print('\n✨ Successfully sent notification for business: ${business.name}');
+          break; // Exit the business loop since we sent a notification
+        } else {
+          print('\n⚠️ No suitable campaigns found for business: ${business.name} (all were already sent today)');
+        }
       }
-    } catch (e, stackTrace) {
-      print('Error checking nearby campaigns: $e');
-      print('Stack trace: $stackTrace');
+
+      if (!notificationSent) {
+        print('\n❌ No suitable campaigns found for notification (all were already sent today)');
+      }
+    } catch (e) {
+      print('❌ Error checking nearby campaigns: $e');
     }
   }
 
