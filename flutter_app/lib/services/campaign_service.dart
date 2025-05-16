@@ -298,12 +298,13 @@ class CampaignService {
       final notificationPayload = {
         'title': 'Yakınlarında Fırsat Var! 🎉',
         'body': '${nearestBusiness.name}: ${campaign.description}',
-        'businessId': nearestBusiness.id,
-        'campaignId': campaign.id,
+        'businessId': nearestBusiness.id.toString(),
+        'campaignId': campaign.id.toString(),
         'fcm_token': fcmToken,
+        'type': 'NEARBY_CAMPAIGN',
         'data': {
-          'businessId': nearestBusiness.id,
-          'campaignId': campaign.id,
+          'businessId': nearestBusiness.id.toString(),
+          'campaignId': campaign.id.toString(),
           'type': 'NEARBY_CAMPAIGN'
         }
       };

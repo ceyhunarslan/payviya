@@ -71,6 +71,17 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+              onPressed: () {
+                // Try to pop if we can, otherwise go to dashboard
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(context);
+                } else {
+                  Navigator.pushReplacementNamed(context, '/dashboard');
+                }
+              },
+            ),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: BoxDecoration(

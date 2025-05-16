@@ -20,16 +20,35 @@ class NotificationService:
                     "message": "FCM token is required"
                 }
             
+            # Extract data and convert all values to strings
+            data = {}
+            raw_data = notification.get('data', {})
+            
+            # Convert all values in data to strings
+            for key, value in raw_data.items():
+                data[str(key)] = str(value)
+            
+            # If type exists in root level, add it to data
+            if 'type' in notification:
+                data['type'] = str(notification['type'])
+            
+            # If businessId exists in root level, add it to data
+            if 'businessId' in notification:
+                data['businessId'] = str(notification['businessId'])
+            
+            # If campaignId exists in root level, add it to data
+            if 'campaignId' in notification:
+                data['campaignId'] = str(notification['campaignId'])
+            
+            print(f"Sending FCM message with data: {data}")
+            
             # Create message
             message = messaging.Message(
                 notification=messaging.Notification(
                     title=notification.get('title'),
                     body=notification.get('body'),
                 ),
-                data={
-                    'businessId': str(notification.get('businessId', '')),
-                    'campaignId': str(notification.get('campaignId', '')),
-                },
+                data=data,
                 token=fcm_token
             )
             

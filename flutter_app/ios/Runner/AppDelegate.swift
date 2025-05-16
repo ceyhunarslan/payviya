@@ -8,6 +8,8 @@ import UserNotifications
 @objc class AppDelegate: FlutterAppDelegate {
   private var isFlutterEngineReady = false
   private var flutterViewController: FlutterViewController?
+  private var pendingNotificationData: [String: Any]?
+  private var lastHandledNotificationId: String?
   
   override func application(
     _ application: UIApplication,
@@ -49,27 +51,18 @@ import UserNotifications
     self.window = window
     window.makeKeyAndVisible()
     
-    // Store references and set up method channel
+    // Store references
     flutterViewController = controller
+    isFlutterEngineReady = true
     
-    // Set up method channel for splash screen
-    let channel = FlutterMethodChannel(name: "app.channel.shared.data",
-                                     binaryMessenger: flutterEngine.binaryMessenger)
-    
-    channel.setMethodCallHandler { [weak self] (call, result) in
-        if call.method == "splashScreenFinished" {
-            print("🎬 Received splash screen finished signal from Flutter")
-            result(nil)
-        } else {
-            result(FlutterMethodNotImplemented)
-        }
+    // Handle any pending notifications
+    if let pendingData = pendingNotificationData {
+      print("📬 Processing pending notification data: \(pendingData)")
+      handleNotificationData(pendingData)
+      pendingNotificationData = nil
     }
     
-    // Handle any pending deep links
-    if let url = launchOptions?[UIApplication.LaunchOptionsKey.url] as? URL {
-      print("🔗 Found URL in launch options: \(url.absoluteString)")
-    }
-    
+    // Set up notification permissions
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
       let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
@@ -91,6 +84,66 @@ import UserNotifications
     print("📨 Messaging delegate set")
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+  
+  private func handleNotificationData(_ userInfo: [AnyHashable: Any], wasUserInteraction: Bool = false) {
+    guard isFlutterEngineReady, let controller = flutterViewController else {
+      print("❌ Flutter engine not ready, storing notification data for later")
+      pendingNotificationData = userInfo as? [String: Any]
+      return
+    }
+    
+    // Check for duplicate notification
+    if let messageId = userInfo["gcm.message_id"] as? String {
+      if messageId == lastHandledNotificationId {
+        print("🔄 Skipping duplicate notification: \(messageId)")
+        return
+      }
+      lastHandledNotificationId = messageId
+    }
+    
+    print("📦 Handling notification data: \(userInfo)")
+    
+    // Extract data from userInfo
+    var notificationData: [String: Any] = [:]
+    
+    // Try to get data from FCM format
+    if let data = userInfo["data"] as? [String: Any] {
+      notificationData = data
+    }
+    // Try to get data from APNS format
+    else if let aps = userInfo["aps"] as? [String: Any],
+            let alert = aps["alert"] as? [String: Any] {
+      notificationData["title"] = alert["title"]
+      notificationData["body"] = alert["body"]
+      
+      // Extract custom data
+      for (key, value) in userInfo {
+        if key as? String != "aps" {
+          notificationData[key as? String ?? ""] = value
+        }
+      }
+    }
+    // Try to get data directly
+    else {
+      for (key, value) in userInfo {
+        notificationData[key as? String ?? ""] = value
+      }
+    }
+    
+    // Add wasUserInteraction flag to the notification data
+    notificationData["wasUserInteraction"] = wasUserInteraction
+    
+    print("📤 Sending notification data to Flutter: \(notificationData)")
+    
+    // Create method channel
+    let channel = FlutterMethodChannel(
+      name: "com.payviya.app/notifications",
+      binaryMessenger: controller.binaryMessenger
+    )
+    
+    // Send notification data to Flutter
+    channel.invokeMethod("handleNotification", arguments: notificationData)
   }
   
   override func application(_ application: UIApplication,
@@ -118,7 +171,6 @@ extension AppDelegate: MessagingDelegate {
   }
 }
 
-// UNUserNotificationCenterDelegate methods
 extension AppDelegate {
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
@@ -128,6 +180,7 @@ extension AppDelegate {
     let userInfo = notification.request.content.userInfo
     print("📬 Received notification while app in foreground: \(userInfo)")
     
+    // Just display the notification, don't handle data yet
     if #available(iOS 14.0, *) {
       completionHandler([[.banner, .sound]])
     } else {
@@ -143,12 +196,19 @@ extension AppDelegate {
     let userInfo = response.notification.request.content.userInfo
     print("📬 Notification tapped: \(userInfo)")
     
-    // Convert userInfo to JSON string for Flutter
-    if let data = try? JSONSerialization.data(withJSONObject: userInfo),
-       let jsonString = String(data: data, encoding: .utf8) {
-      // Send notification tap event to Flutter
-    }
-    
+    // Only handle data when user actually taps the notification
+    handleNotificationData(userInfo, wasUserInteraction: true)
     completionHandler()
+  }
+  
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    print("📬 Received remote notification: \(userInfo)")
+    
+    // Don't handle data automatically, wait for user interaction
+    completionHandler(.newData)
   }
 }

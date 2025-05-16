@@ -4,6 +4,7 @@ import 'package:payviya_app/screens/campaigns/campaign_discovery_screen.dart';
 import 'package:payviya_app/screens/dashboard/tabs/cards_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/home_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/profile_tab.dart';
+import 'package:payviya_app/services/navigation_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -45,6 +46,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('PayViya'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () {
+              // Handle notifications
+            },
+          ),
+        ],
+      ),
       body: PageView(
         controller: _pageController,
         children: _tabs,

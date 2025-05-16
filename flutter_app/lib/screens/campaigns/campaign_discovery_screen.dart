@@ -11,6 +11,7 @@ import 'package:payviya_app/utils/logo_helper.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
 import 'package:payviya_app/widgets/notification_icon.dart';
 import 'package:payviya_app/services/user_service.dart';
+import 'package:payviya_app/services/navigation_service.dart';
 
 class CampaignDiscoveryScreen extends StatefulWidget {
   const CampaignDiscoveryScreen({super.key});
@@ -661,14 +662,7 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                                     campaign: campaign,
                                     style: CampaignTemplateStyle.discover,
                                     onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => CampaignDetailScreen(
-                                            campaign: campaign,
-                                          ),
-                                        ),
-                                      );
+                                      NavigationService.navigateToCampaignDetail(campaign);
                                     },
                                   ),
                                 );

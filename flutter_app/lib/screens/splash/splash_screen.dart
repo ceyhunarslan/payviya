@@ -6,6 +6,7 @@ import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
 import 'package:payviya_app/screens/onboarding/onboarding_screen.dart';
 import 'package:payviya_app/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:payviya_app/services/app_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -66,6 +67,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       // Mark onboarding as seen
       await prefs.setBool('has_seen_onboarding', true);
     } else if (isLoggedIn) {
+      // Initialize app services before navigation
+      await AppService.initializeServices();
+      
       // User is logged in, go to dashboard
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const DashboardScreen()),

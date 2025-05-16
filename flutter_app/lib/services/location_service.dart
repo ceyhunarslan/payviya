@@ -6,7 +6,7 @@ import 'dart:io' show Platform;
 
 class LocationService {
   static const double NEARBY_RADIUS_METERS = 50.0;
-  static const int UPDATE_INTERVAL_SECONDS = 120;
+  static const int UPDATE_INTERVAL_SECONDS = 60;
   
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _simulatorTimer;

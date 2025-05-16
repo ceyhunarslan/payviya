@@ -4,6 +4,9 @@ import 'package:payviya_app/screens/auth/register_screen.dart';
 import 'package:payviya_app/screens/auth/forgot_password_screen.dart';
 import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
 import 'package:payviya_app/services/auth_service.dart';
+import 'package:payviya_app/services/location_service.dart';
+import 'package:payviya_app/services/campaign_service.dart';
+import 'package:payviya_app/services/app_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -49,6 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
+        await AppService.initializeServices();
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
@@ -67,6 +71,28 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      // Initialize location service
+      final locationService = LocationService();
+      final hasPermission = await locationService.handlePermission();
+      print('Location permission status: $hasPermission');
+      
+      if (hasPermission) {
+        print('Starting location tracking service...');
+        locationService.startLocationTracking((position) {
+          print('Location update received: ${position.latitude}, ${position.longitude}');
+          CampaignService.instance.checkAndNotifyNearbyCampaigns(position);
+        });
+        print('Location tracking service started successfully');
+      } else {
+        print('Location permissions not granted');
+      }
+    } catch (e) {
+      print('Error initializing services: $e');
     }
   }
 

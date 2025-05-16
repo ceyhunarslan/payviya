@@ -15,6 +15,7 @@ import 'package:payviya_app/services/api_service.dart';
 import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
 import 'dart:developer' as developer;
+import 'package:payviya_app/services/navigation_service.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({Key? key}) : super(key: key);
@@ -216,7 +217,7 @@ class _HomeTabState extends State<HomeTab> {
                           style: CampaignTemplateStyle.discover,
                           width: double.infinity,
                           onTap: () {
-                            // Navigate to campaign detail
+                            NavigationService.navigateToCampaignDetail(_lastCapturedCampaign!);
                           },
                         ),
                       ),

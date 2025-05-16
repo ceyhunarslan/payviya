@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # Frontend URL
     FRONTEND_URL: str = "payviya://reset-password"  # Mobile app deep link scheme for development
     
+    # Firebase
+    FIREBASE_CREDENTIALS_PATH: str = "firebase-service-account.json"
+    
     # SMTP Settings for Mailtrap
     SMTP_HOST: str = "smtp.mailtrap.io"
     SMTP_PORT: int = 587  # TLS port
