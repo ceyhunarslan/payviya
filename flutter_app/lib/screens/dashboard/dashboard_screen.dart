@@ -46,17 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('PayViya'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              // Handle notifications
-            },
-          ),
-        ],
-      ),
       body: PageView(
         controller: _pageController,
         children: _tabs,

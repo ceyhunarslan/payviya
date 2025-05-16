@@ -19,6 +19,7 @@ class CampaignCategory(Base):
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="category")
+    notifications = relationship("NotificationHistory", back_populates="category")
 
 
 class Campaign(Base):
@@ -59,6 +60,7 @@ class Campaign(Base):
     merchant = relationship("Merchant", back_populates="campaigns")
     category = relationship("CampaignCategory", back_populates="campaigns")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+    notifications = relationship("NotificationHistory", back_populates="campaign")
 
 
 class Bank(Base):
@@ -126,6 +128,7 @@ class Merchant(Base):
 
     # Relationships
     campaigns = relationship("Campaign", back_populates="merchant")
+    notifications = relationship("NotificationHistory", back_populates="merchant")
 
 
 class ScrapedCampaign(Campaign):

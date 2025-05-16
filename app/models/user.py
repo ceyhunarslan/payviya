@@ -37,6 +37,7 @@ class User(Base):
     credit_cards = relationship("CreditCard", secondary=user_credit_cards)
     recommendations = relationship("Recommendation", back_populates="user")
     recommendation_clicks = relationship("RecommendationClick", back_populates="user")
+    notifications = relationship("NotificationHistory", back_populates="user")
 
 
 class Recommendation(Base):

@@ -118,6 +118,7 @@ class OSMService:
         print(f"  Latitude: {latitude}")
         print(f"  Longitude: {longitude}")
         print(f"  Radius: {radius} meters")
+        print(f"  Timestamp: {datetime.now().isoformat()}")
 
         # Expanded Overpass QL query to include more business types
         query = f"""
@@ -136,8 +137,17 @@ class OSMService:
         try:
             async with aiohttp.ClientSession() as session:
                 print(f"\nSending request to: {OSMService.OVERPASS_API_URL}")
+                start_time = datetime.now()
+                
                 async with session.post(OSMService.OVERPASS_API_URL, data={"data": query}) as response:
-                    print(f"Response status: {response.status}")
+                    end_time = datetime.now()
+                    response_time = (end_time - start_time).total_seconds()
+                    
+                    print(f"\nResponse Info:")
+                    print(f"  Status: {response.status}")
+                    print(f"  Response Time: {response_time:.2f} seconds")
+                    print(f"  Content Type: {response.headers.get('content-type', 'unknown')}")
+                    print(f"  Content Length: {response.headers.get('content-length', 'unknown')} bytes")
                     
                     if response.status != 200:
                         error_text = await response.text()
@@ -145,18 +155,34 @@ class OSMService:
                         return []
                     
                     data = await response.json()
-                    print(f"\nResponse data:")
-                    print(f"  Type: {type(data)}")
-                    print(f"  Has elements: {'elements' in data}")
-                    if 'elements' in data:
-                        print(f"  Number of elements: {len(data['elements'])}")
+                    print(f"\nResponse Data Analysis:")
+                    print(f"  Data Type: {type(data)}")
+                    print(f"  Has 'elements' key: {'elements' in data}")
                     
-                    if not data or "elements" not in data:
+                    elements = data.get("elements", [])
+                    print(f"  Number of elements: {len(elements)}")
+                    
+                    if elements:
+                        print("\nElement Types Found:")
+                        type_counts = {}
+                        for element in elements:
+                            tags = element.get("tags", {})
+                            if "shop" in tags:
+                                type_counts[f"shop:{tags['shop']}"] = type_counts.get(f"shop:{tags['shop']}", 0) + 1
+                            if "amenity" in tags:
+                                type_counts[f"amenity:{tags['amenity']}"] = type_counts.get(f"amenity:{tags['amenity']}", 0) + 1
+                            if "tourism" in tags:
+                                type_counts[f"tourism:{tags['tourism']}"] = type_counts.get(f"tourism:{tags['tourism']}", 0) + 1
+                        
+                        for type_name, count in type_counts.items():
+                            print(f"    {type_name}: {count}")
+                    
+                    if not data or not elements:
                         print("No elements found in response")
                         return []
 
                     businesses = []
-                    for element in data.get("elements", []):
+                    for element in elements:
                         tags = element.get("tags", {})
                         
                         # Try to match category from different tag types
@@ -193,7 +219,17 @@ class OSMService:
                         }
                         businesses.append(business)
 
-                    print(f"\nTotal businesses found: {len(businesses)}")
+                    print(f"\nProcessed Results:")
+                    print(f"  Total elements found: {len(elements)}")
+                    print(f"  Matched businesses: {len(businesses)}")
+                    if businesses:
+                        print("\nMatched Categories:")
+                        category_counts = {}
+                        for business in businesses:
+                            category_counts[business["type"]] = category_counts.get(business["type"], 0) + 1
+                        for category, count in category_counts.items():
+                            print(f"    {category}: {count}")
+                    
                     print("=======================================================\n")
                     return businesses
 
@@ -201,6 +237,9 @@ class OSMService:
             print(f"\nError fetching nearby businesses from OSM:")
             print(f"Exception type: {type(e)}")
             print(f"Exception message: {str(e)}")
+            print(f"Stack trace:")
+            import traceback
+            print(traceback.format_exc())
             print(f"=======================================================\n")
             return []
 

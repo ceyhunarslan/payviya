@@ -37,3 +37,6 @@ android/app/release/
 /venv/
 /backup/
 *.bak
+flutter_app/build/
+*.dill
+*.dylib

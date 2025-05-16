@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         print('Starting location tracking service...');
         locationService.startLocationTracking((position) {
           print('Location update received: ${position.latitude}, ${position.longitude}');
-          CampaignService.instance.checkAndNotifyNearbyCampaigns(position);
+          CampaignService.checkAndNotifyNearbyCampaigns(position);
         });
         print('Location tracking service started successfully');
       } else {

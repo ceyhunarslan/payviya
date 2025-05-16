@@ -45,7 +45,7 @@ class Business {
             fullCampaignJson.addAll({
               'category': json['type']?.toString() ?? 'OTHER',
               'campaign_category_name': _getCategoryDisplayName(json['type']?.toString() ?? 'OTHER'),
-              'category_id': 0,
+              'category_id': campaignJson['category_id'],
               'start_date': DateTime.now().toIso8601String(),
               'end_date': DateTime.now().add(const Duration(days: 30)).toIso8601String(),
               'is_active': true,

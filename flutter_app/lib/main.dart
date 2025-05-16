@@ -4,16 +4,15 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/screens/splash/splash_screen.dart';
 import 'package:payviya_app/screens/auth/login_screen.dart';
+import 'package:payviya_app/screens/auth/verify_code_screen.dart';
+import 'package:payviya_app/screens/auth/reset_password_screen.dart';
 import 'package:payviya_app/screens/dashboard/tabs/profile_tab.dart';
 import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
 import 'package:payviya_app/screens/dashboard/dashboard_screen.dart';
 import 'package:payviya_app/services/navigation_service.dart';
 import 'package:payviya_app/services/push_notification_service.dart';
 import 'package:payviya_app/screens/test_screen.dart';
-import 'dart:io';
-import 'dart:async';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Environment configuration
 const String API_BASE_URL = String.fromEnvironment(
@@ -29,67 +28,30 @@ class Routes {
   static const String profile = '/profile';
   static const String campaignDetail = '/campaign-detail';
   static const String test = '/test';
+  static const String verifyCode = '/verify-code';
+  static const String resetPassword = '/reset-password';
 }
 
-void main() async {
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized first
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
-    // Get the log file path
-    final directory = await getApplicationDocumentsDirectory();
-    final logFile = File('${directory.path}/app.log');
-    print('📝 Log file path: ${logFile.path}');
+    // Initialize Firebase
+    print('📱 Initializing Firebase...');
+    await Firebase.initializeApp();
+    print('✅ Firebase initialized successfully');
     
-    // Create the file if it doesn't exist
-    if (!await logFile.exists()) {
-      await logFile.create();
-      print('✅ Log file created successfully');
-    }
+    // Initialize Push Notification Service
+    print('🔔 Initializing Push Notification Service...');
+    final pushNotificationService = PushNotificationService();
+    await pushNotificationService.initialize();
+    print('✅ Push Notification Service initialized successfully');
     
-    // Write initial log entry
-    await logFile.writeAsString(
-      '=== App Started at ${DateTime.now()} ===\n',
-      mode: FileMode.append,
-    );
-    print('✅ Initial log entry written');
-    
-    // Run the app in a custom error zone
-    runZonedGuarded(() async {
-      try {
-        // Firebase'i başlat
-        print('📱 Initializing Firebase...');
-        await Firebase.initializeApp();
-        print('✅ Firebase initialized successfully');
-        
-        // Push notification servisini başlat
-        print('🔔 Initializing Push Notification Service...');
-        final pushNotificationService = PushNotificationService();
-        await pushNotificationService.initialize();
-        print('✅ Push Notification Service initialized successfully');
-        
-        runApp(const PayViyaApp());
-        
-      } catch (e, stack) {
-        print('❌ Error during initialization: $e');
-        print('Stack trace: $stack');
-        await logFile.writeAsString(
-          'Error during initialization: $e\nStack trace: $stack\n',
-          mode: FileMode.append,
-        );
-      }
-    }, (error, stackTrace) async {
-      // Log any unhandled errors
-      print('❌ Unhandled error: $error');
-      print('Stack trace: $stackTrace');
-      await logFile.writeAsString(
-        'Unhandled error: $error\nStack trace: $stackTrace\n',
-        mode: FileMode.append,
-      );
-    });
-    
-  } catch (e, stack) {
+    runApp(const PayViyaApp());
+  } catch (e, stackTrace) {
     print('❌ Critical error during setup: $e');
-    print('Stack trace: $stack');
+    print('Stack trace: $stackTrace');
   }
 }
 
@@ -146,6 +108,39 @@ class PayViyaApp extends StatelessWidget {
           case Routes.dashboard:
             return MaterialPageRoute(
               builder: (context) => const DashboardScreen(),
+              settings: settings,
+            );
+            
+          case Routes.verifyCode:
+            final args = settings.arguments as Map<String, dynamic>?;
+            if (args == null || args['email'] == null) {
+              print('❌ Invalid verify code arguments, redirecting to login');
+              return MaterialPageRoute(
+                builder: (context) => const LoginScreen(),
+                settings: settings,
+              );
+            }
+            
+            return MaterialPageRoute(
+              builder: (context) => VerifyCodeScreen(email: args['email']),
+              settings: settings,
+            );
+            
+          case Routes.resetPassword:
+            final args = settings.arguments as Map<String, dynamic>?;
+            if (args == null || args['email'] == null || args['temp_token'] == null) {
+              print('❌ Invalid reset password arguments, redirecting to login');
+              return MaterialPageRoute(
+                builder: (context) => const LoginScreen(),
+                settings: settings,
+              );
+            }
+            
+            return MaterialPageRoute(
+              builder: (context) => ResetPasswordScreen(
+                email: args['email'],
+                tempToken: args['temp_token'],
+              ),
               settings: settings,
             );
             

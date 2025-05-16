@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:payviya_app/models/user.dart';
 import 'package:dio/dio.dart';
 import 'package:payviya_app/main.dart' show API_BASE_URL;
+import 'package:payviya_app/services/storage_service.dart';
+import 'package:payviya_app/utils/password_utils.dart';
 
 class AuthService {
   static const storage = FlutterSecureStorage();
@@ -22,9 +24,12 @@ class AuthService {
     required String countryCode,
   }) async {
     try {
+      // Hash the password before sending
+      final hashedPassword = PasswordUtils.hashPassword(password);
+      
       final data = {
         'email': email,
-        'password': password,
+        'password': hashedPassword,
         'name': name,
         'surname': surname,
         'phone_number': phoneNumber,
@@ -48,38 +53,32 @@ class AuthService {
   }
 
   // Login with email and password
-  static Future<User> login({required String email, required String password}) async {
+  static Future<User> login({
+    required String email,
+    required String password,
+  }) async {
     try {
-      print('Starting login process for email: $email');
+      print('Login attempt - Email: $email');
       
-      // Use the appropriate content type for form data
-      final headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-      };
+      // Hash the password before sending
+      final hashedPassword = PasswordUtils.hashPassword(password);
+      print('Password hashed successfully');
+      print('Hashed password length: ${hashedPassword.length}');
       
-      // Prepare the request body
       final body = {
         'username': email,
-        'password': password,
+        'password': hashedPassword,
       };
+      print('Preparing request body: $body');
       
-      // Convert the body to URL encoded format
-      final encodedBody = body.entries
-          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-          
-      print('Sending login request to: $API_BASE_URL/auth/login/access-token');
-      
-      // Send the POST request
-      final uri = Uri.parse('$API_BASE_URL/auth/login/access-token');
       final response = await http.post(
-        uri, 
-        headers: headers, 
-        body: encodedBody
+        Uri.parse('$API_BASE_URL/auth/login/access-token'),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body,
       );
       
       print('Login response status: ${response.statusCode}');
+      print('Login response headers: ${response.headers}');
       print('Login response body: ${response.body}');
       
       if (response.statusCode == 200) {
@@ -125,73 +124,56 @@ class AuthService {
     }
   }
 
-  // Send password reset link
-  static Future<void> sendPasswordResetLink({required String email}) async {
+  // Password Reset Flow
+  static Future<void> requestPasswordReset(String email) async {
     try {
-      // Email formatını kontrol et
-      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-        throw Exception('Geçerli bir e-posta adresi girin');
-      }
-
-      final response = await ApiService.instance.dio.post<dynamic>(
-        '/auth/password-reset/request',
+      await ApiService.instance.dio.post(
+        '/auth/forgot-password/request',
         data: {'email': email},
       );
-
-      print('Password reset response status: ${response.statusCode}');
-      print('Password reset response data: ${response.data}');
-
-      if (response.statusCode == 404) {
-        throw Exception('Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı');
-      }
-
-      if (response.statusCode != 200) {
-        throw Exception('Şifre yenileme bağlantısı gönderilemedi. Lütfen tekrar deneyin');
-      }
-
-      if (response.data != null && response.data is Map) {
-        print('Password reset response: ${response.data['message']}');
-      }
-
     } catch (e) {
-      print('Error sending password reset link: $e');
-      if (e is DioException) {
-        if (e.response?.statusCode == 404) {
-          throw Exception('Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı');
-        } else if (e.response?.statusCode == 429) {
-          throw Exception('Çok fazla deneme yaptınız. Lütfen bir süre bekleyin');
-        } else if (e.response?.data != null && e.response?.data['detail'] != null) {
-          throw Exception(e.response?.data['detail']);
-        }
-      }
-      throw Exception('Şifre yenileme bağlantısı gönderilemedi. Lütfen tekrar deneyin');
+      throw _handleError(e);
     }
   }
 
-  // Reset password with token
-  static Future<void> resetPassword(String token, String newPassword) async {
+  static Future<Map<String, dynamic>> verifyResetCode({
+    required String email,
+    required String code,
+  }) async {
     try {
-      final response = await ApiService.instance.dio.post<Map<String, dynamic>>(
-        '/auth/password-reset/confirm',
+      final response = await ApiService.instance.dio.post(
+        '/auth/forgot-password/verify',
         data: {
-          'token': token,
-          'new_password': newPassword,
+          'email': email,
+          'code': code,
         },
       );
-      
-      if (response.statusCode != 200) {
-        throw Exception('Şifre güncellenemedi');
-      }
+
+      return response.data;
     } catch (e) {
-      print('Error resetting password: $e');
-      if (e is DioException) {
-        if (e.response?.statusCode == 400) {
-          throw Exception('Geçersiz veya süresi dolmuş token');
-        } else if (e.response?.data != null && e.response?.data['detail'] != null) {
-          throw Exception(e.response?.data['detail']);
-        }
-      }
-      throw Exception('Şifre güncellenemedi: $e');
+      throw _handleError(e);
+    }
+  }
+
+  static Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+    required String tempToken,
+  }) async {
+    try {
+      // Hash the password before sending
+      final hashedPassword = PasswordUtils.hashPassword(newPassword);
+      
+      await ApiService.instance.dio.post(
+        '/auth/reset-password',
+        data: {
+          'email': email,
+          'new_password': hashedPassword,
+          'temp_token': tempToken,
+        },
+      );
+    } catch (e) {
+      throw _handleError(e);
     }
   }
 
@@ -322,5 +304,16 @@ class AuthService {
       print('Error during logout: $e');
       rethrow;
     }
+  }
+
+  static Exception _handleError(dynamic error) {
+    if (error is DioException) {
+      final response = error.response;
+      if (response != null && response.data is Map) {
+        final message = response.data['detail'] ?? 'Bir hata oluştu';
+        return Exception(message);
+      }
+    }
+    return Exception('Bir hata oluştu. Lütfen daha sonra tekrar deneyin.');
   }
 } 

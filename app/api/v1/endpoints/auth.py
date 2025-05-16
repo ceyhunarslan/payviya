@@ -10,10 +10,14 @@ from app.api.v1 import deps
 from app.core import security
 from app.core.config import settings
 from app.models.user import User
-from app.utils.password import get_password_hash, verify_password
+from app.utils.password import get_password_hash, verify_password, validate_password
 from app.utils.email import send_reset_password_email
 from pydantic import BaseModel, EmailStr
 import secrets
+from datetime import datetime
+from app.models.verification import VerificationCode
+import random
+import string
 
 router = APIRouter()
 
@@ -23,9 +27,18 @@ password_reset_tokens = {}
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
-class PasswordResetConfirm(BaseModel):
-    token: str
+class VerifyCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
     new_password: str
+    temp_token: str
+
+def generate_verification_code() -> str:
+    """Generate a 6-digit numeric verification code"""
+    return ''.join(random.choices(string.digits, k=6))
 
 @router.post("/register", response_model=schemas.User)
 def register_user(
@@ -41,6 +54,14 @@ def register_user(
         raise HTTPException(
             status_code=400,
             detail="User with this email already exists.",
+        )
+    
+    # Validate password
+    is_valid, error_message = validate_password(user_in.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=error_message
         )
     
     # Create new user
@@ -62,14 +83,23 @@ def login_access_token(
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
+    The password should be pre-hashed by the client using SHA-256 with salt.
     """
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=401,
             detail="Incorrect email or password",
         )
-    elif not user.is_active:
+    
+    # Verify the password using client-side hashing
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password",
+        )
+    
+    if not user.is_active:
         raise HTTPException(
             status_code=400,
             detail="Inactive user",
@@ -83,78 +113,128 @@ def login_access_token(
         "token_type": "bearer",
     }
 
-@router.post("/password-reset/request")
+@router.post("/forgot-password/request")
 async def request_password_reset(
-    reset_request: PasswordResetRequest,
-    db: Session = Depends(deps.get_db),
-) -> Any:
+    request: PasswordResetRequest,
+    db: Session = Depends(deps.get_db)
+) -> dict:
     """
-    Password reset step 1: Request a password reset
+    Request a password reset by sending a verification code to the user's email
     """
-    user = db.query(User).filter(User.email == reset_request.email).first()
+    # Check if user exists
+    user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Bu e-posta adresi ile kayıtlı kullanıcı bulunamadı",
+            detail="User with this email does not exist"
         )
-    
-    # Generate a secure token
-    reset_token = secrets.token_urlsafe(32)
-    
-    # Store the token with the user ID (In production, use Redis with expiration)
-    password_reset_tokens[reset_token] = {
-        "user_id": user.id,
-        "email": user.email,
-    }
-    
-    # Generate the reset link with custom URL scheme for development
-    reset_link = f"payviya://reset-password?token={reset_token}"
-    
-    # Send the reset email
+
+    # Generate verification code
+    code = generate_verification_code()
+    expires_at = datetime.now() + timedelta(minutes=15)  # Code expires in 15 minutes
+
+    # Save verification code to database
+    verification = VerificationCode(
+        email=request.email,
+        code=code,
+        purpose="password_reset",
+        expires_at=expires_at
+    )
+    db.add(verification)
+    db.commit()
+
+    # Send verification code via email
     try:
         await send_reset_password_email(
-            email_to=user.email,
-            reset_link=reset_link,
-            user_name=user.name,
+            email_to=request.email,
+            verification_code=code,
+            user_name=user.name
         )
     except Exception as e:
-        print(f"Error sending reset email: {e}")
+        print(f"Error sending verification code email: {e}")
         raise HTTPException(
             status_code=500,
-            detail="E-posta gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+            detail="Failed to send verification code. Please try again later."
         )
-    
-    return {"message": "Şifre yenileme bağlantısı e-posta adresinize gönderildi"}
 
-@router.post("/password-reset/confirm")
-async def confirm_password_reset(
-    reset_confirm: PasswordResetConfirm,
-    db: Session = Depends(deps.get_db),
-) -> Any:
+    return {
+        "message": "Verification code sent to email",
+        "expires_in": "15 minutes"
+    }
+
+@router.post("/forgot-password/verify")
+async def verify_reset_code(
+    request: VerifyCodeRequest,
+    db: Session = Depends(deps.get_db)
+) -> dict:
     """
-    Password reset step 2: Confirm and set new password
+    Verify the password reset code
     """
-    # Check if token exists
-    token_data = password_reset_tokens.get(reset_confirm.token)
-    if not token_data:
+    # Get the latest unused verification code for this email
+    verification = db.query(VerificationCode).filter(
+        VerificationCode.email == request.email,
+        VerificationCode.code == request.code,
+        VerificationCode.purpose == "password_reset",
+        VerificationCode.is_used == False,
+        VerificationCode.expires_at > datetime.now()
+    ).order_by(VerificationCode.created_at.desc()).first()
+
+    if not verification:
         raise HTTPException(
             status_code=400,
-            detail="Geçersiz veya süresi dolmuş token",
+            detail="Invalid or expired verification code"
         )
-    
-    # Get user
-    user = db.query(User).filter(User.id == token_data["user_id"]).first()
+
+    # Mark code as used
+    verification.is_used = True
+    verification.used_at = datetime.now()
+    db.commit()
+
+    # Generate a temporary token for password reset
+    temp_token = security.create_access_token(
+        subject=str(verification.email),
+        expires_delta=timedelta(minutes=15)
+    )
+
+    return {
+        "message": "Verification successful",
+        "temp_token": temp_token
+    }
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(deps.get_db)
+) -> dict:
+    """
+    Reset the password using the temporary token.
+    The new_password should be pre-hashed by the client.
+    """
+    # Verify temp token
+    try:
+        payload = security.verify_token(request.temp_token)
+        token_email = payload.get("sub")
+        if token_email != request.email:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid token for this email"
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired token"
+        )
+
+    # Update user's password with the pre-hashed password
+    user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Kullanıcı bulunamadı",
+            detail="User not found"
         )
-    
-    # Update password
-    user.hashed_password = get_password_hash(reset_confirm.new_password)
+
+    # Hash the pre-hashed password from client with bcrypt
+    user.hashed_password = get_password_hash(request.new_password)
     db.commit()
-    
-    # Remove used token
-    password_reset_tokens.pop(reset_confirm.token)
-    
-    return {"message": "Şifreniz başarıyla güncellendi"} 
+
+    return {"message": "Password reset successful"} 
