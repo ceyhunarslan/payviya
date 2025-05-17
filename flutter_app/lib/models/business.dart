@@ -100,6 +100,13 @@ class Business {
       'ENTERTAINMENT': 'Eğlence',
       'FASHION': 'Moda',
       'HEALTH': 'Sağlık',
+      'EDUCATION': 'Eğitim',
+      'INSURANCE': 'Sigorta',
+      'TELECOM': 'Telekomünikasyon',
+      'COSMETICS': 'Kozmetik',
+      'JEWELRY': 'Mücevher',
+      'HOME': 'Ev & Yaşam',
+      'AUTOMOTIVE': 'Otomotiv',
       'OTHER': 'Diğer'
     };
     return displayNames[category] ?? category;

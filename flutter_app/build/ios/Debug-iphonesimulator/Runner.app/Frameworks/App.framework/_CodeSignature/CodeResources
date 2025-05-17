@@ -10,11 +10,11 @@
 		</data>
 		<key>flutter_assets/AssetManifest.bin</key>
 		<data>
-		9iaPDG1Ddf/vFoN0Z09d4OjyJG0=
+		6KnraU5ZplBIyTrXUnzzKA+ebNc=
 		</data>
 		<key>flutter_assets/AssetManifest.json</key>
 		<data>
-		HU/OJD6bvmAwnGtNTfVlBtuNi/4=
+		v6uwpjsR4qQ24MujfagLDVCaY1g=
 		</data>
 		<key>flutter_assets/FontManifest.json</key>
 		<data>
@@ -100,17 +100,61 @@
 		<data>
 		ggH89lMyXRSiANfUfPwlQTlml4A=
 		</data>
+		<key>flutter_assets/assets/images/logos/cards/bank_o_card.png</key>
+		<data>
+		EgmCwE5pPEfBuSZ2OKN7eYgX+bc=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/bankkart.png</key>
+		<data>
+		ss4TciRms2JCcKzc1xDarPx1iTg=
+		</data>
 		<key>flutter_assets/assets/images/logos/cards/bonus_card.png</key>
 		<data>
 		c4NoCRteggoEu7t4iN6wnq2IDYg=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/denizbank_bonus.png</key>
+		<data>
+		tQTJ+4YMtZ0UAJXR3+0HtWNIciI=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/fibabanka_card.png</key>
+		<data>
+		QkyQxJOA18Tzs9+kfhBkN9mK7uQ=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/hsbc_advantage.png</key>
+		<data>
+		Sfk30EjwstW3JvI4Zltv0y8vrfg=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/ing_card.png</key>
+		<data>
+		pznqHm7T/lXfbi8zge+CUP+7VRQ=
 		</data>
 		<key>flutter_assets/assets/images/logos/cards/maximum.png</key>
 		<data>
 		nKZHQN/RgQXi0Ze+ObUTyucb32w=
 		</data>
+		<key>flutter_assets/assets/images/logos/cards/paraf.png</key>
+		<data>
+		3c3hU7Zg1S2zXbBsGSPpfo/0Q5o=
+		</data>
 		<key>flutter_assets/assets/images/logos/cards/qnb.png</key>
 		<data>
 		DI2PtU52ZZHmqu4FOtrvjNvAmp4=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/seker_bonus.png</key>
+		<data>
+		YsWM00xpQFqyj1RC0pwtkYdD27M=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/teb_bonus.png</key>
+		<data>
+		YsWM00xpQFqyj1RC0pwtkYdD27M=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/vakif_worldcard.png</key>
+		<data>
+		JxsKVUMtfE5RlbIf5hiWSmXM8Xs=
+		</data>
+		<key>flutter_assets/assets/images/logos/cards/worldcard.png</key>
+		<data>
+		JxsKVUMtfE5RlbIf5hiWSmXM8Xs=
 		</data>
 		<key>flutter_assets/assets/images/placeholder.png</key>
 		<data>
@@ -138,7 +182,7 @@
 		</data>
 		<key>flutter_assets/kernel_blob.bin</key>
 		<data>
-		2P6RsgjhQEPu+eMQ/6c4Nbh9V/w=
+		o3Ho4pyOaMwM00G9ICLRwjpcc2k=
 		</data>
 		<key>flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf</key>
 		<data>
@@ -159,14 +203,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			MQbOIZNBgVDzdVtDv49DKHqNULgHOl0b97VOaJB1cKA=
+			OZRxMt7UzVr8fpD+vpM6HzbgvadjFYbifi6pyLZ9j5Q=
 			</data>
 		</dict>
 		<key>flutter_assets/AssetManifest.json</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			cvszSCPF+/AfS6wga2SdLDo7W64EIO5ZrG4UBr9DNlk=
+			os67VIyq0QolM62gz1wM23FHMbtzFui5n3EH2KSP47U=
 			</data>
 		</dict>
 		<key>flutter_assets/FontManifest.json</key>
@@ -302,11 +346,53 @@
 			ILVkd3IolKbTBJvjIhAxZh6Uqky+TXo8dRMgitutbec=
 			</data>
 		</dict>
+		<key>flutter_assets/assets/images/logos/cards/bank_o_card.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			6H59an8DwSB2fYFYlaoWkAZE28hJa5KMNMq0yvHZ1ec=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/bankkart.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			TsYkiFxJfdLsGtEGQE09dAtTcgKawZcNI3Zz+Qbc0as=
+			</data>
+		</dict>
 		<key>flutter_assets/assets/images/logos/cards/bonus_card.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			wmSPTU7QYbhoR7yCGdMcnOOTCuXrOdNXerN4IhaP84g=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/denizbank_bonus.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			LwFEQqzncUiO+23/OzMbJ/sQmA5EMPvKWA0pYWknPdg=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/fibabanka_card.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			TQ1yS1PtP0Dnw1O9FUHZc2om2QJwcKfAeCzJb5Z4qaE=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/hsbc_advantage.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			0GJ5BIJKyQHjjpNUhQtGxdP7YlaWrSUUVi6V2XMmi4Y=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/ing_card.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			rKI7ugwLCQQHOtPlb/fLjbeTYPpRhu5GeBzUAZwYm6E=
 			</data>
 		</dict>
 		<key>flutter_assets/assets/images/logos/cards/maximum.png</key>
@@ -316,11 +402,46 @@
 			juepQg5Tjpk6jK+9favI9FGeVeXRBkNnFTxPwhisYRw=
 			</data>
 		</dict>
+		<key>flutter_assets/assets/images/logos/cards/paraf.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			GtNyaWE/w++ynavmNg4i7ps8sbQiDdmDBNIvWakQwn4=
+			</data>
+		</dict>
 		<key>flutter_assets/assets/images/logos/cards/qnb.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			U3IFBM0IuAe40w/Ovm83JmE9NfxsyKSbgGg4rTwadjQ=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/seker_bonus.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			o3H8vybEYls6MqnHb8VXucclLXl3OoJtwvkfTmi29kQ=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/teb_bonus.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			o3H8vybEYls6MqnHb8VXucclLXl3OoJtwvkfTmi29kQ=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/vakif_worldcard.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			qbjyUeCmKGX3qgVzejX4owzuGDHgY/uUj63/0p7z6LY=
+			</data>
+		</dict>
+		<key>flutter_assets/assets/images/logos/cards/worldcard.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			qbjyUeCmKGX3qgVzejX4owzuGDHgY/uUj63/0p7z6LY=
 			</data>
 		</dict>
 		<key>flutter_assets/assets/images/placeholder.png</key>
@@ -369,7 +490,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oDq8JAYHMVdKAlP4TLPYHe2/SswGo8cTBf6X7iXqspU=
+			iQLDL6/+AqBnSJx99DIkx6Y+TOHE1rkDuFuqPM2c2ww=
 			</data>
 		</dict>
 		<key>flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf</key>

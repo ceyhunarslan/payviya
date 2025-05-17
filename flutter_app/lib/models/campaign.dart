@@ -157,9 +157,9 @@ class Campaign {
       }
       
       // Handle dates directly as DateTime objects
-      final startDate = DateTime.parse(json['startDate'] ?? json['start_date']);
-      final endDate = DateTime.parse(json['endDate'] ?? json['end_date']);
-      final createdAt = DateTime.parse(json['createdAt'] ?? json['created_at']);
+      final startDate = DateTime.parse(json['start_date'] ?? json['startDate']);
+      final endDate = DateTime.parse(json['end_date'] ?? json['endDate']);
+      final createdAt = DateTime.parse(json['created_at'] ?? json['createdAt']);
 
       return Campaign(
         id: json['id'] as int,

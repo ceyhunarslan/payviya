@@ -162,6 +162,34 @@ class ApiService {
     return response.data;
   }
 
+  // Static login method
+  static Future<String> login(String username, String password) async {
+    try {
+      print('Attempting login for user: $username');
+      final response = await instance.dio.post<Map<String, dynamic>>(
+        '/auth/login/access-token',
+        data: FormData.fromMap({
+          'username': username,
+          'password': password,
+        }),
+        options: Options(
+          contentType: 'application/x-www-form-urlencoded',
+        ),
+      );
+      
+      print('Login response: ${response.data}');
+      final token = response.data?['access_token'] as String?;
+      if (token != null) {
+        print('Received token: $token');
+        return token;
+      }
+      throw Exception('Token not found in response');
+    } on DioException catch (e) {
+      print('Login error: ${e.response?.data}');
+      throw Exception(e.response?.data?['detail'] ?? 'Login failed');
+    }
+  }
+
   // Static campaign methods
   static Future<List<Campaign>> getCampaigns({int skip = 0, int limit = 20}) async {
     try {

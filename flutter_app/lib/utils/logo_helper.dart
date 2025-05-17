@@ -9,6 +9,16 @@ class LogoHelper {
     'İş Bankası': 'assets/images/logos/banks/is_bankasi.png',
     'Yapı Kredi': 'assets/images/logos/banks/yapi_kredi.png',
     'QNB': 'assets/images/logos/banks/qnb.png',
+    'Ziraat Bankası': 'assets/images/logos/banks/ziraat.png',
+    'Halkbank': 'assets/images/logos/banks/halkbank.png',
+    'Vakıfbank': 'assets/images/logos/banks/vakifbank.png',
+    'TEB': 'assets/images/logos/banks/teb.png',
+    'HSBC': 'assets/images/logos/banks/hsbc.png',
+    'Denizbank': 'assets/images/logos/banks/denizbank.png',
+    'ING': 'assets/images/logos/banks/ing.png',
+    'Odeabank': 'assets/images/logos/banks/odeabank.png',
+    'Şekerbank': 'assets/images/logos/banks/sekerbank.png',
+    'Fibabanka': 'assets/images/logos/banks/fibabanka.png',
     // Add more banks as needed
   };
 
@@ -17,8 +27,18 @@ class LogoHelper {
     'Bonus Card': 'assets/images/logos/cards/bonus_card.png',
     'Axess': 'assets/images/logos/cards/axess.png',
     'Maximum': 'assets/images/logos/cards/maximum.png',
-    'World': 'assets/images/logos/cards/world.png',
+    'World': 'assets/images/logos/cards/worldcard.png',
+    'Vakıfbank World Card': 'assets/images/logos/cards/vakif_worldcard.png',
     'QNB': 'assets/images/logos/cards/qnb.png',
+    'Bankkart': 'assets/images/logos/cards/bankkart.png',
+    'Paraf': 'assets/images/logos/cards/paraf.png',
+    'TEB Bonus': 'assets/images/logos/cards/teb_bonus.png',
+    'Advantage': 'assets/images/logos/cards/hsbc_advantage.png',
+    'Denizbank Bonus': 'assets/images/logos/cards/denizbank_bonus.png',
+    'ING Card': 'assets/images/logos/cards/ing_card.png',
+    'Bank O Card': 'assets/images/logos/cards/bank_o_card.png',
+    'Şeker Bonus': 'assets/images/logos/cards/seker_bonus.png',
+    'Fibabanka Card': 'assets/images/logos/cards/fibabanka_card.png',
     // Add more cards as needed
   };
 
@@ -174,5 +194,92 @@ class LogoHelper {
       red.abs() % 200 + 55,  // Keep it not too dark
       green.abs() % 200 + 55,
       blue.abs() % 200 + 55);
+  }
+
+  static String getBankLogo(String bankName) {
+    final normalizedName = bankName.toLowerCase().replaceAll(' ', '_');
+    
+    switch (normalizedName) {
+      case 'garanti_bbva':
+        return 'assets/images/logos/banks/garanti_bbva.png';
+      case 'akbank':
+        return 'assets/images/logos/banks/akbank.png';
+      case 'is_bankasi':
+      case 'iş_bankası':
+        return 'assets/images/logos/banks/is_bankasi.png';
+      case 'yapi_kredi':
+      case 'yapı_kredi':
+        return 'assets/images/logos/banks/yapi_kredi.png';
+      case 'qnb':
+      case 'qnb_finansbank':
+        return 'assets/images/logos/banks/qnb_finansbank.png';
+      case 'ziraat_bankası':
+      case 'ziraat_bankasi':
+        return 'assets/images/logos/banks/ziraat.png';
+      case 'halkbank':
+        return 'assets/images/logos/banks/halkbank.png';
+      case 'vakıfbank':
+      case 'vakifbank':
+        return 'assets/images/logos/banks/vakifbank.png';
+      case 'teb':
+        return 'assets/images/logos/banks/teb.png';
+      case 'hsbc':
+        return 'assets/images/logos/banks/hsbc.png';
+      case 'denizbank':
+        return 'assets/images/logos/banks/denizbank.png';
+      case 'ing':
+        return 'assets/images/logos/banks/ing.png';
+      case 'odeabank':
+        return 'assets/images/logos/banks/odeabank.png';
+      case 'şekerbank':
+      case 'sekerbank':
+        return 'assets/images/logos/banks/sekerbank.png';
+      case 'fibabanka':
+        return 'assets/images/logos/banks/fibabanka.png';
+      default:
+        return 'assets/images/placeholder.png';
+    }
+  }
+
+  static String getCardLogo(String cardName) {
+    final normalizedName = cardName.toLowerCase().replaceAll(' ', '_');
+    
+    switch (normalizedName) {
+      case 'bonus_card':
+      case 'bonus':
+        return 'assets/images/logos/cards/bonus_card.png';
+      case 'maximum':
+        return 'assets/images/logos/cards/maximum.png';
+      case 'axess':
+        return 'assets/images/logos/cards/axess.png';
+      case 'world':
+      case 'worldcard':
+        return 'assets/images/logos/cards/worldcard.png';
+      case 'qnb_kredi_kartı':
+      case 'qnb_kredi_karti':
+        return 'assets/images/logos/cards/qnb.png';
+      case 'bankkart':
+        return 'assets/images/logos/cards/bankkart.png';
+      case 'paraf':
+        return 'assets/images/logos/cards/paraf.png';
+      case 'teb_bonus':
+        return 'assets/images/logos/cards/teb_bonus.png';
+      case 'advance':
+      case 'hsbc_advance':
+        return 'assets/images/logos/cards/hsbc_advance.png';
+      case 'denizbank_bonus':
+        return 'assets/images/logos/cards/denizbank_bonus.png';
+      case 'ing_card':
+        return 'assets/images/logos/cards/ing_card.png';
+      case 'bank_o_card':
+        return 'assets/images/logos/cards/bank_o_card.png';
+      case 'şeker_bonus':
+      case 'seker_bonus':
+        return 'assets/images/logos/cards/seker_bonus.png';
+      case 'fibabanka_card':
+        return 'assets/images/logos/cards/fibabanka_card.png';
+      default:
+        return 'assets/images/placeholder.png';
+    }
   }
 } 

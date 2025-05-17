@@ -9,6 +9,13 @@ class CategoryEnum(str, enum.Enum):
     ENTERTAINMENT = "ENTERTAINMENT"
     FASHION = "FASHION"
     HEALTH = "HEALTH"
+    EDUCATION = "EDUCATION"
+    INSURANCE = "INSURANCE"
+    TELECOM = "TELECOM"
+    COSMETICS = "COSMETICS"
+    JEWELRY = "JEWELRY"
+    HOME = "HOME"
+    AUTOMOTIVE = "AUTOMOTIVE"
     OTHER = "OTHER"
 
 class DiscountType(str, enum.Enum):

@@ -8,7 +8,7 @@ from sqlalchemy.sql import and_, or_
 
 from app.db.base import get_db
 from app.models.campaign import Campaign, Bank, CreditCard, Merchant, CampaignSource, DiscountType, CampaignStatus, CampaignCategory
-from app.core.enums import CategoryEnum
+from app.models.enums import CategoryEnum
 from app.schemas.campaign import (
     CampaignCreate,
     CampaignUpdate,
