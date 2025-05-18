@@ -6,6 +6,7 @@ import 'package:payviya_app/widgets/notification_icon.dart';
 import 'package:payviya_app/screens/profile/edit_profile_screen.dart';
 import 'package:payviya_app/services/auth_service.dart';
 import 'package:payviya_app/screens/auth/login_screen.dart';
+import 'package:payviya_app/screens/notifications/notifications_screen.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -160,7 +161,12 @@ class _ProfileTabState extends State<ProfileTab> {
                         icon: Icons.notifications_outlined,
                         title: 'Bildirim Ayarları',
                         onTap: () {
-                          // Navigate to notification settings
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const NotificationsScreen(),
+                            ),
+                          );
                         },
                       ),
                       _buildSettingsItem(

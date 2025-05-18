@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:payviya_app/services/api_service.dart';
 import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/theme/app_theme.dart';
+import 'package:payviya_app/widgets/notification_icon_with_badge.dart';
 
 class AddCardScreen extends StatefulWidget {
   const AddCardScreen({super.key});
@@ -135,15 +136,7 @@ class _AddCardScreenState extends State<AddCardScreen> {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: AppTheme.textPrimaryColor,
-                    ),
-                    onPressed: () {
-                      // Navigate to notifications
-                    },
-                  ),
+                  const NotificationIconWithBadge(),
                 ],
               ),
             ),

@@ -24,6 +24,16 @@ class NotificationService {
     }
   }
 
+  Future<int> getUnreadCount() async {
+    try {
+      final notifications = await getNotifications();
+      return notifications.where((n) => !n.isRead).length;
+    } catch (e) {
+      print('Error getting unread notification count: $e');
+      return 0;
+    }
+  }
+
   Future<bool> markAsRead(int notificationId) async {
     try {
       final response = await ApiService.instance.dio.post(

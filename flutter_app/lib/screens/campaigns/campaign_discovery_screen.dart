@@ -9,7 +9,7 @@ import 'package:payviya_app/widgets/campaign_template.dart';
 import 'package:payviya_app/widgets/loading_indicator.dart';
 import 'package:payviya_app/utils/logo_helper.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
-import 'package:payviya_app/widgets/notification_icon.dart';
+import 'package:payviya_app/widgets/notification_icon_with_badge.dart';
 import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/services/navigation_service.dart';
 
@@ -493,7 +493,7 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const NotificationIcon(),
+                    const NotificationIconWithBadge(),
                   ],
                 ),
               ),

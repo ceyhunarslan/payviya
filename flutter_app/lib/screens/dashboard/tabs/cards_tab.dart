@@ -6,7 +6,7 @@ import 'package:payviya_app/widgets/add_card_modal.dart';
 import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/utils/logo_helper.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
-import 'package:payviya_app/widgets/notification_icon.dart';
+import 'package:payviya_app/widgets/notification_icon_with_badge.dart';
 
 class CardsTab extends StatefulWidget {
   const CardsTab({super.key});
@@ -179,7 +179,7 @@ class _CardsTabState extends State<CardsTab> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  const NotificationIcon(),
+                  const NotificationIconWithBadge(),
                 ],
               ),
             ),

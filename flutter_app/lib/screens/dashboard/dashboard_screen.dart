@@ -8,6 +8,7 @@ import 'package:payviya_app/services/navigation_service.dart';
 import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
 import 'package:payviya_app/screens/notifications/notifications_screen.dart';
+import 'package:payviya_app/widgets/notification_icon_with_badge.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -116,20 +117,7 @@ class DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       actions: [
-        IconButton(
-          icon: const Icon(
-            Icons.notifications_outlined,
-            color: AppTheme.textPrimaryColor,
-          ),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const NotificationsScreen(),
-              ),
-            );
-          },
-        ),
+        const NotificationIconWithBadge(),
       ],
     );
   }

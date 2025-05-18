@@ -31,7 +31,7 @@ class NotificationIcon extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor,
+                color: Colors.red,
                 borderRadius: BorderRadius.circular(6),
               ),
               constraints: const BoxConstraints(
