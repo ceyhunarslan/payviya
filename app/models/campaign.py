@@ -62,6 +62,34 @@ class Campaign(Base):
     reviewer = relationship("User", foreign_keys=[reviewed_by])
     notifications = relationship("NotificationHistory", back_populates="campaign")
 
+    def to_json(self):
+        """Convert campaign object to JSON serializable dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "bank": self.bank.name if self.bank else None,
+            "card": self.credit_card.name if self.credit_card else None,
+            "category_id": self.category_id,
+            "discount_type": self.discount_type.value,
+            "discount_value": float(self.discount_value),
+            "min_amount": float(self.min_amount) if self.min_amount else None,
+            "max_discount": float(self.max_discount) if self.max_discount else None,
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "merchant_id": self.merchant_id,
+            "merchant": self.merchant.to_json() if self.merchant else None,
+            "is_active": self.is_active,
+            "requires_enrollment": self.requires_enrollment,
+            "enrollment_url": self.enrollment_url,
+            "source": self.source.value,
+            "status": self.status.value,
+            "external_id": self.external_id,
+            "priority": self.priority,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
 
 class Bank(Base):
     __tablename__ = "banks"

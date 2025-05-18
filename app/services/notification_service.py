@@ -94,6 +94,37 @@ class NotificationService:
             # If type exists in root level, add it to data
             if 'type' in notification:
                 data['type'] = str(notification['type'])
+
+            # Get current date and time
+            now = datetime.now()
+
+            # Create notification history record
+            if db is None:
+                print("Getting new database session...")
+                db = next(get_db())
+
+            # Prepare notification history data according to the actual schema
+            notification_history = NotificationHistory(
+                user_id=field_values['user_id'],
+                merchant_id=int(notification['merchant_id']) if notification.get('merchant_id') else None,
+                campaign_id=field_values['campaign_id'],
+                latitude=field_values['latitude'],
+                longitude=field_values['longitude'],
+                location_hash=location_hash,
+                category_id=field_values['category_id'],
+                sent_at=now,
+                sent_date=now.date(),
+                title=notification.get('title', 'Notification'),
+                body=notification.get('body', ''),
+                is_read=False
+            )
+            
+            # Add to database first to get the ID
+            db.add(notification_history)
+            db.flush()  # This will assign the ID without committing
+            
+            # Add notification ID to data payload
+            data['notificationId'] = str(notification_history.id)
             
             print(f"\n📤 Sending FCM message with data: {data}")
             
@@ -110,55 +141,9 @@ class NotificationService:
             # Send message
             response = messaging.send(message)
             print(f"✅ FCM message sent successfully: {response}")
-
-            print("\n💾 Saving to database...")
-            # Create notification history record
-            if db is None:
-                print("Getting new database session...")
-                db = next(get_db())
-
-            # Get current date and time
-            now = datetime.now()
-
-            # Prepare notification history data according to the actual schema
-            notification_history = NotificationHistory(
-                user_id=field_values['user_id'],
-                merchant_id=int(notification['merchant_id']) if notification.get('merchant_id') else None,
-                campaign_id=field_values['campaign_id'],
-                latitude=field_values['latitude'],
-                longitude=field_values['longitude'],
-                location_hash=location_hash,
-                category_id=field_values['category_id'],
-                sent_at=now,
-                sent_date=now.date()
-            )
             
-            print(f"\n📝 Notification history object created:")
-            print(f"user_id: {notification_history.user_id}")
-            print(f"merchant_id: {notification_history.merchant_id}")
-            print(f"campaign_id: {notification_history.campaign_id}")
-            print(f"category_id: {notification_history.category_id}")
-            print(f"latitude: {notification_history.latitude}")
-            print(f"longitude: {notification_history.longitude}")
-            print(f"location_hash: {notification_history.location_hash}")
-            print(f"sent_at: {notification_history.sent_at}")
-            print(f"sent_date: {notification_history.sent_date}")
-            
-            try:
-                print("\n🔄 Adding to database session...")
-                db.add(notification_history)
-                print("✅ Added to session")
-                
-                print("\n💾 Committing to database...")
-                db.commit()
-                print("✅ Committed successfully")
-                
-                print(f"\n🆔 Generated notification history ID: {notification_history.id}")
-            except Exception as db_error:
-                print(f"\n❌ Database error: {str(db_error)}")
-                if hasattr(db_error, '__cause__'):
-                    print(f"Caused by: {str(db_error.__cause__)}")
-                raise
+            # Now commit the transaction
+            db.commit()
             
             return {
                 "success": True,
@@ -172,6 +157,8 @@ class NotificationService:
             if hasattr(e, '__cause__'):
                 print(f"Caused by: {str(e.__cause__)}")
             print(f"Notification payload: {notification}")
+            if 'db' in locals() and db is not None:
+                db.rollback()
             return {
                 "success": False,
                 "message": f"Failed to send notification: {str(e)}"

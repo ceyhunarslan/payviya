@@ -189,107 +189,15 @@ class CampaignService {
     }
   }
 
-  static Future<List<Business>> getNearbyBusinessesWithCampaigns(Position userLocation) async {
-    if (!_isInitialized) {
-      await initialize();
-    }
-
-    try {
-      final response = await ApiService.instance.dio.post('/businesses/nearby-campaigns', data: {
-        'latitude': userLocation.latitude,
-        'longitude': userLocation.longitude,
-        'radius': NEARBY_RADIUS_METERS,
-      });
-
-      print('=================== NEARBY CAMPAIGNS API RESPONSE ===================');
-      print('Request Parameters:');
-      print('  Latitude: ${userLocation.latitude}');
-      print('  Longitude: ${userLocation.longitude}');
-      print('  Radius: $NEARBY_RADIUS_METERS meters');
-      print('\nResponse:');
-      print('  Type: ${response.data.runtimeType}');
-      print('  Content: ${response.data}');
-      print('================================================================');
-
-      if (response.data is List) {
-        List<Business> businesses = [];
-        for (var item in response.data) {
-          try {
-            if (item is Map<String, dynamic>) {
-              businesses.add(Business.fromJson(item));
-            } else {
-              print('Invalid business data format: $item');
-            }
-          } catch (e) {
-            print('Error parsing business: $e');
-          }
-        }
-        return businesses;
-      }
-      
-      print('Unexpected response format: ${response.data}');
-      return [];
-    } catch (e) {
-      print('Error getting nearby businesses: $e');
-      return [];
-    }
-  }
-
   static Future<void> checkAndNotifyNearbyCampaigns(Position position) async {
     if (!_isInitialized) {
       await initialize();
     }
 
     try {
-      print('\n🔍 Fetching nearby businesses with campaigns...');
+      print('\n🔍 Checking nearby campaigns for notifications...');
       print('Location: ${position.latitude}, ${position.longitude}');
       
-      final businesses = await getNearbyBusinessesWithCampaigns(position);
-      
-      print('\n📊 Nearby Businesses Response:');
-      print('Total businesses found: ${businesses.length}');
-      
-      for (var business in businesses) {
-        print('\n🏢 Business Details:');
-        print('  Name: ${business.name}');
-        print('  ID: ${business.id}');
-        print('  Type: ${business.type}');
-        print('  Merchant ID: ${business.merchant_id}');
-        print('  Location: ${business.latitude}, ${business.longitude}');
-        print('  Active Campaigns: ${business.activeCampaigns.length}');
-        
-        for (var campaign in business.activeCampaigns) {
-          print('\n  📱 Campaign Details:');
-          print('    ID: ${campaign.id}');
-          print('    Name: ${campaign.name}');
-          print('    Description: ${campaign.description}');
-          print('    Category ID: ${campaign.categoryId}');
-          print('    Merchant ID: ${campaign.merchant_id}');
-        }
-      }
-      
-      if (businesses.isEmpty) {
-        print('❌ No nearby businesses with campaigns found');
-        return;
-      }
-
-      // Sort businesses by distance
-      businesses.sort((a, b) {
-        final distanceA = Geolocator.distanceBetween(
-          position.latitude,
-          position.longitude,
-          a.latitude,
-          a.longitude,
-        );
-        final distanceB = Geolocator.distanceBetween(
-          position.latitude,
-          position.longitude,
-          b.latitude,
-          b.longitude,
-        );
-        return distanceA.compareTo(distanceB);
-      });
-
       // Get current user
       final currentUser = await UserService.getCurrentUser();
       if (currentUser == null) {
@@ -312,94 +220,23 @@ class CampaignService {
         return;
       }
 
-      // Try each business until we successfully send a notification
-      bool notificationSent = false;
-      for (var business in businesses) {
-        if (business.activeCampaigns.isEmpty) {
-          print('Skipping business ${business.name} - no active campaigns');
-          continue;
-        }
-
-        print('\n📍 Processing business for notification: ${business.name}');
-        final distance = Geolocator.distanceBetween(
-          position.latitude,
-          position.longitude,
-          business.latitude,
-          business.longitude,
-        );
-        print('Distance to business: ${distance.toStringAsFixed(2)} meters');
-
-        // Sort campaigns by priority
-        final sortedCampaigns = List<Campaign>.from(business.activeCampaigns)
-          ..sort((a, b) => b.priority.compareTo(a.priority));
-
-        print('Found ${sortedCampaigns.length} campaigns, sorted by priority');
-
-        // Try each campaign for this business
-        for (var campaign in sortedCampaigns) {
-          print('\n🎯 Processing campaign: ${campaign.name} (Priority: ${campaign.priority})');
-          
-          
-          
-          // Prepare notification payload
-          print('\n📦 Preparing notification payload:');
-          print('  Business ID: ${business.id}');
-          print('  Business Name: ${business.name}');
-          print('  Merchant ID: ${campaign.merchant?.id}');
-          print('  Campaign ID: ${campaign.id}');
-          print('  Category ID: ${campaign.categoryId}');
-
-          final notificationPayload = {
-            'title': 'Yakınlarında Fırsat Var! 🎉',
-            'body': '${business.name}: ${campaign.description}',
-            'user_id': currentUser.id,
-            'merchant_id': campaign.merchant?.id,
-            'campaign_id': campaign.id,
-            'category_id': campaign.categoryId ?? 1,
+      // Call backend to process nearby campaigns and send notifications
+      try {
+        final response = await ApiService.instance.dio.post(
+          '/businesses/nearby-campaigns-notify',
+          data: {
             'latitude': position.latitude,
             'longitude': position.longitude,
+            'radius': NEARBY_RADIUS_METERS,
             'fcm_token': fcmToken,
-            'type': 'NEARBY_CAMPAIGN',
-            'data': {
-              'businessId': business.id.toString(),
-              'campaignId': campaign.id.toString(),
-              'type': 'NEARBY_CAMPAIGN'
-            }
-          };
+          },
+        );
 
-          print('\n📤 Final notification payload:');
-          print(notificationPayload);
-
-          // Send notification to backend
-          try {
-            print('Sending notification request to backend...');
-            final response = await ApiService.instance.dio.post('/notifications/send', data: notificationPayload);
-            
-            if (response.data == null) {
-              print('❌ Failed to send notification: No response from server');
-              continue;
-            }
-
-            print('✅ Notification sent successfully!');
-            notificationSent = true;
-            break; // Exit the campaign loop for this business
-          } catch (e) {
-            print('❌ Error sending notification to backend: $e');
-            continue;
-          }
-        }
-
-        if (notificationSent) {
-          print('\n✨ Successfully sent notification for business: ${business.name}');
-          break; // Exit the business loop since we sent a notification
-        } else {
-          print('\n⚠️ No suitable campaigns found for business: ${business.name}');
-        }
+        print('✅ Nearby campaigns processed: ${response.data}');
+      } catch (e) {
+        print('❌ Error processing nearby campaigns: $e');
       }
 
-      if (!notificationSent) {
-        print('\n❌ No suitable campaigns found for notification');
-      }
     } catch (e) {
       print('❌ Error checking nearby campaigns: $e');
     }

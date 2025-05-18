@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:payviya_app/models/campaign.dart';
 import 'package:payviya_app/services/campaign_service.dart';
 import 'package:payviya_app/services/navigation_service.dart';
+import 'package:payviya_app/services/notification_service.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -306,11 +307,21 @@ class PushNotificationService {
       if (type == 'NEARBY_CAMPAIGN') {
         final campaignId = data['campaignId'] ?? 
                          (data['data'] is Map ? data['data']['campaignId'] : null);
+        final notificationId = data['notificationId'] ??
+                         (data['data'] is Map ? data['data']['notificationId'] : null);
                          
         if (campaignId != null) {
           print('🎫 Handling campaign notification');
           await _log('🎫 Handling campaign notification');
           try {
+            // Mark notification as read if notification ID exists
+            if (notificationId != null) {
+              final id = int.parse(notificationId.toString());
+              print('📝 Marking notification $id as read');
+              await _log('📝 Marking notification $id as read');
+              await NotificationService.instance.markAsRead(id);
+            }
+
             final id = int.parse(campaignId.toString());
             print('📦 Fetching campaign details for ID: $id');
             await _log('📦 Fetching campaign details for ID: $id');

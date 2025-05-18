@@ -16,6 +16,7 @@ import 'package:payviya_app/screens/campaigns/campaign_detail_screen.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
 import 'dart:developer' as developer;
 import 'package:payviya_app/services/navigation_service.dart';
+import 'package:payviya_app/screens/notifications/notifications_screen.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({Key? key}) : super(key: key);
@@ -186,7 +187,12 @@ class _HomeTabState extends State<HomeTab> {
                 color: AppTheme.textPrimaryColor,
               ),
               onPressed: () {
-                // Navigate to notifications
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsScreen(),
+                  ),
+                );
               },
             ),
           ],

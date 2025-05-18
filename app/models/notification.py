@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import Column, Integer, String, DateTime, Date, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, DateTime, Date, ForeignKey, Float, Boolean, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -18,6 +18,12 @@ class NotificationHistory(Base):
     sent_date = Column(Date, nullable=False, server_default=func.current_date())
     location_hash = Column(String(50), nullable=False)
     category_id = Column(Integer, ForeignKey("campaign_categories.id"), nullable=False)
+    
+    # New columns for notification details
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    is_read = Column(Boolean, nullable=False, server_default='false')
+    read_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="notifications")
