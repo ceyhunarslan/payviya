@@ -5,23 +5,62 @@ import 'package:payviya_app/screens/dashboard/tabs/cards_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/home_tab.dart';
 import 'package:payviya_app/screens/dashboard/tabs/profile_tab.dart';
 import 'package:payviya_app/services/navigation_service.dart';
+import 'package:payviya_app/services/user_service.dart';
+import 'package:payviya_app/widgets/user_avatar.dart';
+import 'package:payviya_app/screens/notifications/notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  final int initialTabIndex;
+  
+  const DashboardScreen({
+    Key? key,
+    this.initialTabIndex = 0,
+  }) : super(key: key);
 
-  static final GlobalKey<_DashboardScreenState> globalKey = GlobalKey<_DashboardScreenState>();
+  static final GlobalKey<DashboardScreenState> globalKey = GlobalKey<DashboardScreenState>();
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  int _currentIndex = 0;
-  final PageController _pageController = PageController();
+class DashboardScreenState extends State<DashboardScreen> {
+  late int _currentIndex;
+  late PageController _pageController;
+  String _userName = '';
+  String _userSurname = '';
+
+  final List<String> _tabTitles = [
+    'Ana Sayfa',
+    'Kampanyalar',
+    'Kartlarım',
+    'Profil',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTabIndex;
+    _pageController = PageController(initialPage: _currentIndex);
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final userData = await UserService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _userName = userData?.name ?? 'User';
+          _userSurname = userData?.surname ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
 
   final List<Widget> _tabs = [
     const HomeTab(),
-    const CampaignDiscoveryScreen(),
+    const CampaignDiscoveryScreen(showAppBar: false),
     const CardsTab(),
     const ProfileTab(),
   ];
@@ -33,92 +72,157 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void onTabTapped(int index) {
+    if (!mounted) return;
+    
+    // Ensure the index is valid
+    if (index < 0 || index >= _tabs.length) {
+      print('Invalid tab index: $index');
+      return;
+    }
+    
     setState(() {
       _currentIndex = index;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(index);
+      }
     });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      title: Row(
+        children: [
+          UserAvatar(
+            name: _userName,
+            surname: _userSurname,
+            radius: 18,
+            backgroundColor: AppTheme.primaryColor,
+            textColor: Colors.white,
+            fontSize: 16,
+            enableTap: true,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _tabTitles[_currentIndex],
+            style: const TextStyle(
+              color: AppTheme.textPrimaryColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: AppTheme.textPrimaryColor,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationsScreen(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        children: _tabs,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        physics: const NeverScrollableScrollPhysics(),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: onTabTapped,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Ana Sayfa',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_offer_outlined),
-            activeIcon: Icon(Icons.local_offer),
-            label: 'Kampanyalar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.credit_card_outlined),
-            activeIcon: Icon(Icons.credit_card),
-            label: 'Kartlarım',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-      ),
-      floatingActionButton: Container(
-        height: 65,
-        width: 65,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(32.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.4),
-              blurRadius: 10,
-              spreadRadius: 2,
-              offset: const Offset(0, 4),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_currentIndex != 0) {
+          // If not on home tab, go to home tab
+          onTabTapped(0);
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: _buildAppBar(),
+        body: PageView(
+          controller: _pageController,
+          children: _tabs,
+          onPageChanged: (index) {
+            if (mounted) {
+              setState(() {
+                _currentIndex = index;
+              });
+            }
+          },
+          physics: const NeverScrollableScrollPhysics(),
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: onTabTapped,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: AppTheme.primaryColor,
+          unselectedItemColor: Colors.grey,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Ana Sayfa',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.local_offer_outlined),
+              activeIcon: Icon(Icons.local_offer),
+              label: 'Kampanyalar',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.credit_card_outlined),
+              activeIcon: Icon(Icons.credit_card),
+              label: 'Kartlarım',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profil',
             ),
           ],
         ),
-        child: FloatingActionButton(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
+        floatingActionButton: Container(
+          height: 65,
+          width: 65,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(32.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withOpacity(0.4),
+                blurRadius: 10,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: FloatingActionButton(
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => _buildQuickActionsSheet(),
+            );
+          },
             backgroundColor: Colors.transparent,
-            builder: (context) => _buildQuickActionsSheet(),
-          );
-        },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.add, size: 30),
+            elevation: 0,
+            child: const Icon(Icons.add, size: 30),
+          ),
         ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 

@@ -14,7 +14,12 @@ import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/services/navigation_service.dart';
 
 class CampaignDiscoveryScreen extends StatefulWidget {
-  const CampaignDiscoveryScreen({super.key});
+  final bool showAppBar;
+  
+  const CampaignDiscoveryScreen({
+    Key? key,
+    this.showAppBar = true,
+  }) : super(key: key);
 
   @override
   State<CampaignDiscoveryScreen> createState() => _CampaignDiscoveryScreenState();
@@ -458,39 +463,40 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            SliverAppBar(
-              floating: true,
-              pinned: false,
-              snap: true,
-              backgroundColor: Colors.white,
-              elevation: 0,
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  UserAvatar(
-                    name: _userName,
-                    surname: _userSurname,
-                    radius: 18,
-                    backgroundColor: AppTheme.primaryColor,
-                    textColor: Colors.white,
-                    fontSize: 16,
-                    enableTap: true,
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Kampanyalar',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimaryColor,
-                      ),
-                      textAlign: TextAlign.center,
+            if (widget.showAppBar)
+              SliverAppBar(
+                floating: true,
+                pinned: false,
+                snap: true,
+                backgroundColor: Colors.white,
+                elevation: 0,
+                title: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    UserAvatar(
+                      name: _userName,
+                      surname: _userSurname,
+                      radius: 18,
+                      backgroundColor: AppTheme.primaryColor,
+                      textColor: Colors.white,
+                      fontSize: 16,
+                      enableTap: true,
                     ),
-                  ),
-                  const NotificationIcon(),
-                ],
+                    const Expanded(
+                      child: Text(
+                        'Kampanyalar',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimaryColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const NotificationIcon(),
+                  ],
+                ),
               ),
-            ),
 
             // Search bar (if searching)
             if (_isSearching)

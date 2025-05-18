@@ -56,7 +56,7 @@ Future<void> main() async {
 }
 
 class PayViyaApp extends StatelessWidget {
-  const PayViyaApp({super.key});
+  const PayViyaApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +83,7 @@ class PayViyaApp extends StatelessWidget {
             if (args == null || args['campaign'] == null) {
               print('❌ Invalid campaign detail arguments, redirecting to dashboard');
               return MaterialPageRoute(
-                builder: (context) => const DashboardScreen(),
+                builder: (context) => DashboardScreen(key: DashboardScreen.globalKey),
                 settings: settings,
               );
             }
@@ -106,9 +106,13 @@ class PayViyaApp extends StatelessWidget {
             );
             
           case Routes.dashboard:
+            final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
-              builder: (context) => const DashboardScreen(),
-              settings: settings,
+              builder: (context) => DashboardScreen(
+                key: DashboardScreen.globalKey,
+                initialTabIndex: args?['initialTabIndex'] ?? 0,
+              ),
+              settings: const RouteSettings(name: '/dashboard'),
             );
             
           case Routes.verifyCode:

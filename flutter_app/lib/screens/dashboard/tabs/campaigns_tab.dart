@@ -452,157 +452,104 @@ class _CampaignsTabState extends State<CampaignsTab> with SingleTickerProviderSt
       length: 2,
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Header with avatar and notification
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    UserAvatar(
-                      name: _userName,
-                      surname: _userSurname,
-                      radius: 18,
-                      backgroundColor: AppTheme.primaryColor,
-                      textColor: Colors.white,
-                      fontSize: 16,
-                      enableTap: true,
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'Kampanyalar',
+        body: Column(
+          children: [
+            // Tab Bar
+            TabBar(
+              controller: _tabController,
+              indicatorColor: AppTheme.primaryColor,
+              labelColor: AppTheme.primaryColor,
+              unselectedLabelColor: AppTheme.textSecondaryColor,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.normal,
+                fontSize: 16,
+              ),
+              tabs: const [
+                Tab(text: 'Tüm Kampanyalar'),
+                Tab(text: 'Bana Özel'),
+              ],
+            ),
+            // Category chips
+            Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _categories.length,
+                itemBuilder: (context, index) {
+                  final category = _categories[index];
+                  final isSelected = _selectedCategory == category['name'];
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(
+                        category['display'] ?? category['name'],
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimaryColor,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.notifications_outlined,
-                        color: AppTheme.textPrimaryColor,
-                      ),
-                      onPressed: () {
-                        // Navigate to notifications
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              // Remove the old title AppBar since we moved it to the header
-              // App Bar with search only
-              PreferredSize(
-                preferredSize: const Size.fromHeight(kToolbarHeight),
-                child: AppBar(
-                  elevation: 0,
-                  backgroundColor: Colors.white,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.search,
-                        color: AppTheme.textPrimaryColor,
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CampaignDiscoveryScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              // Tab Bar
-              TabBar(
-                controller: _tabController,
-                indicatorColor: AppTheme.primaryColor,
-                labelColor: AppTheme.primaryColor,
-                unselectedLabelColor: AppTheme.textSecondaryColor,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.normal,
-                  fontSize: 16,
-                ),
-                tabs: const [
-                  Tab(text: 'Tüm Kampanyalar'),
-                  Tab(text: 'Bana Özel'),
-                ],
-              ),
-              // Category chips
-              Container(
-                height: 60,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    final category = _categories[index];
-                    final isSelected = _selectedCategory == category['name'];
-                    
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(
-                          category['display'] ?? category['name'],
-                          style: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : AppTheme.textPrimaryColor,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        avatar: Icon(
-                          category['icon'] as IconData,
                           color: isSelected
                               ? Colors.white
-                              : AppTheme.primaryColor,
-                          size: 16,
-                        ),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedCategory = category['name'];
-                          });
-                        },
-                        backgroundColor: Colors.grey[100],
-                        selectedColor: AppTheme.primaryColor,
-                        checkmarkColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                              : AppTheme.textPrimaryColor,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
-                    );
-                  },
-                ),
+                      avatar: Icon(
+                        category['icon'] as IconData,
+                        color: isSelected
+                            ? Colors.white
+                            : AppTheme.primaryColor,
+                        size: 16,
+                      ),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedCategory = category['name'];
+                        });
+                      },
+                      backgroundColor: Colors.grey[100],
+                      selectedColor: AppTheme.primaryColor,
+                      checkmarkColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                  );
+                },
               ),
-              // Tab content
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    // All Campaigns Tab
-                    _buildCampaignList(_allCampaigns, _isLoadingAll, false),
-                    
-                    // Special for You Tab
-                    _buildCampaignList(_personalizedCampaigns, _isLoadingPersonalized, true),
-                  ],
-                ),
+            ),
+            // Tab content
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // All Campaigns Tab
+                  _buildCampaignList(_allCampaigns, _isLoadingAll, false),
+                  
+                  // Special for You Tab
+                  _buildCampaignList(_personalizedCampaigns, _isLoadingPersonalized, true),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CampaignDiscoveryScreen(),
+              ),
+            );
+          },
+          backgroundColor: AppTheme.primaryColor,
+          child: const Icon(Icons.search),
         ),
       ),
     );

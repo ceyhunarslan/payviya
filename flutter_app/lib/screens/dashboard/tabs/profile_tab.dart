@@ -63,37 +63,6 @@ class _ProfileTabState extends State<ProfileTab> {
       backgroundColor: AppTheme.backgroundColor,
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
-            floating: true,
-            pinned: false,
-            snap: false,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            title: Row(
-              children: [
-                UserAvatar(
-                  name: _userData['name'] ?? '',
-                  surname: _userData['surname'] ?? '',
-                  radius: 18,
-                  backgroundColor: AppTheme.primaryColor,
-                  textColor: Colors.white,
-                  fontSize: 16,
-                ),
-                const Expanded(
-                  child: Text(
-                    'Profilim',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimaryColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),  
-                const NotificationIcon(),
-              ],
-            ),
-          ),
           SliverToBoxAdapter(
             child: Column(
               children: [

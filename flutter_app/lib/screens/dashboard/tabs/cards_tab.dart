@@ -195,38 +195,6 @@ class _CardsTabState extends State<CardsTab> {
       backgroundColor: AppTheme.backgroundColor,
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
-            floating: true,
-            pinned: false,
-            snap: true,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            title: Row(
-              children: [
-                UserAvatar(
-                  name: _userName,
-                  surname: _userSurname,
-                  radius: 18,
-                  backgroundColor: AppTheme.primaryColor,
-                  textColor: Colors.white,
-                  fontSize: 16,
-                  enableTap: true,
-                ),
-                const Expanded(
-                  child: Text(
-                    'Kartlarım',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimaryColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const NotificationIcon(),
-              ],
-            ),
-          ),
           SliverToBoxAdapter(
             child: Column(
               children: [

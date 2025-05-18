@@ -150,54 +150,6 @@ class _HomeTabState extends State<HomeTab> {
     
     return CustomScrollView(
       slivers: [
-        // App Bar
-        SliverAppBar(
-          automaticallyImplyLeading: false,
-          floating: true,
-          pinned: false,
-          snap: false,
-          backgroundColor: Colors.white,
-          elevation: 0,
-          title: Row(
-            children: [
-              UserAvatar(
-                name: _userName,
-                surname: _userSurname,
-                radius: 18,
-                backgroundColor: AppTheme.primaryColor,
-                textColor: Colors.white,
-                fontSize: 16,
-                enableTap: true,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Merhaba, $_userName",
-                style: const TextStyle(
-                  color: AppTheme.textPrimaryColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(
-                Icons.notifications_outlined,
-                color: AppTheme.textPrimaryColor,
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const NotificationsScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-        
         // Content
         SliverToBoxAdapter(
           child: Padding(
