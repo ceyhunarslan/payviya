@@ -1,12 +1,13 @@
 import 'campaign.dart';
 
 class Business {
-  final int id;
+  final String id;
   final String name;
   final String type;
   final double latitude;
   final double longitude;
   final List<Campaign> activeCampaigns;
+  final int? merchant_id;
 
   Business({
     required this.id,
@@ -15,6 +16,7 @@ class Business {
     required this.latitude,
     required this.longitude,
     required this.activeCampaigns,
+    this.merchant_id,
   });
 
   factory Business.fromJson(Map<String, dynamic> json) {
@@ -65,12 +67,13 @@ class Business {
       }
 
       return Business(
-        id: id,
+        id: json['id'] as String,
         name: json['name'] as String,
         type: json['type'] as String,
         latitude: (json['latitude'] as num).toDouble(),
         longitude: (json['longitude'] as num).toDouble(),
         activeCampaigns: campaigns,
+        merchant_id: json['merchant_id'] as int?,
       );
     } catch (e, stackTrace) {
       print('Error parsing business JSON: $e');
@@ -87,6 +90,7 @@ class Business {
       'latitude': latitude,
       'longitude': longitude,
       'active_campaigns': activeCampaigns.map((campaign) => campaign.toJson()).toList(),
+      'merchant_id': merchant_id,
     };
   }
 

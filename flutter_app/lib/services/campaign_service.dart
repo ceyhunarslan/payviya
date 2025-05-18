@@ -11,7 +11,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 class CampaignService {
   static final CampaignService instance = CampaignService._internal();
   static bool _isInitialized = false;
-  static const int NEARBY_RADIUS_METERS = 50; // Reduced from 100 to 50 meters
+  static const int NEARBY_RADIUS_METERS = 100; // Reduced from 100 to 50 meters
 
   CampaignService._internal();
 
@@ -241,10 +241,35 @@ class CampaignService {
     }
 
     try {
+      print('\n🔍 Fetching nearby businesses with campaigns...');
+      print('Location: ${position.latitude}, ${position.longitude}');
+      
       final businesses = await getNearbyBusinessesWithCampaigns(position);
       
+      print('\n📊 Nearby Businesses Response:');
+      print('Total businesses found: ${businesses.length}');
+      
+      for (var business in businesses) {
+        print('\n🏢 Business Details:');
+        print('  Name: ${business.name}');
+        print('  ID: ${business.id}');
+        print('  Type: ${business.type}');
+        print('  Merchant ID: ${business.merchant_id}');
+        print('  Location: ${business.latitude}, ${business.longitude}');
+        print('  Active Campaigns: ${business.activeCampaigns.length}');
+        
+        for (var campaign in business.activeCampaigns) {
+          print('\n  📱 Campaign Details:');
+          print('    ID: ${campaign.id}');
+          print('    Name: ${campaign.name}');
+          print('    Description: ${campaign.description}');
+          print('    Category ID: ${campaign.categoryId}');
+          print('    Merchant ID: ${campaign.merchant_id}');
+        }
+      }
+      
       if (businesses.isEmpty) {
-        print('No nearby businesses with campaigns found');
+        print('❌ No nearby businesses with campaigns found');
         return;
       }
 
@@ -295,7 +320,7 @@ class CampaignService {
           continue;
         }
 
-        print('\n📍 Checking campaigns for business: ${business.name}');
+        print('\n📍 Processing business for notification: ${business.name}');
         final distance = Geolocator.distanceBetween(
           position.latitude,
           position.longitude,
@@ -312,14 +337,23 @@ class CampaignService {
 
         // Try each campaign for this business
         for (var campaign in sortedCampaigns) {
-          print('\n🎯 Trying campaign: ${campaign.name} (Priority: ${campaign.priority})');
+          print('\n🎯 Processing campaign: ${campaign.name} (Priority: ${campaign.priority})');
+          
+          
           
           // Prepare notification payload
+          print('\n📦 Preparing notification payload:');
+          print('  Business ID: ${business.id}');
+          print('  Business Name: ${business.name}');
+          print('  Merchant ID: ${campaign.merchant?.id}');
+          print('  Campaign ID: ${campaign.id}');
+          print('  Category ID: ${campaign.categoryId}');
+
           final notificationPayload = {
             'title': 'Yakınlarında Fırsat Var! 🎉',
             'body': '${business.name}: ${campaign.description}',
             'user_id': currentUser.id,
-            'merchant_id': business.id,
+            'merchant_id': campaign.merchant?.id,
             'campaign_id': campaign.id,
             'category_id': campaign.categoryId ?? 1,
             'latitude': position.latitude,
@@ -332,6 +366,9 @@ class CampaignService {
               'type': 'NEARBY_CAMPAIGN'
             }
           };
+
+          print('\n📤 Final notification payload:');
+          print(notificationPayload);
 
           // Send notification to backend
           try {
@@ -356,12 +393,12 @@ class CampaignService {
           print('\n✨ Successfully sent notification for business: ${business.name}');
           break; // Exit the business loop since we sent a notification
         } else {
-          print('\n⚠️ No suitable campaigns found for business: ${business.name} (all were already sent today)');
+          print('\n⚠️ No suitable campaigns found for business: ${business.name}');
         }
       }
 
       if (!notificationSent) {
-        print('\n❌ No suitable campaigns found for notification (all were already sent today)');
+        print('\n❌ No suitable campaigns found for notification');
       }
     } catch (e) {
       print('❌ Error checking nearby campaigns: $e');

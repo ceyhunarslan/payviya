@@ -130,6 +130,22 @@ class Merchant(Base):
     campaigns = relationship("Campaign", back_populates="merchant")
     notifications = relationship("NotificationHistory", back_populates="merchant")
 
+    def to_json(self):
+        """Convert merchant object to JSON serializable dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "categories": self.categories,
+            "logo_url": self.logo_url,
+            "latitude": float(self.latitude) if self.latitude is not None else None,
+            "longitude": float(self.longitude) if self.longitude is not None else None,
+            "address": self.address,
+            "city": self.city,
+            "country": self.country,
+            "phone": self.phone,
+            "website": self.website
+        }
+
 
 class ScrapedCampaign(Campaign):
     __tablename__ = "scraped_campaigns"

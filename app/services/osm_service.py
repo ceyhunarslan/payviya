@@ -127,8 +127,12 @@ class OSMService:
           node["shop"](around:{radius},{latitude},{longitude});
           node["amenity"~"^(restaurant|cafe|fast_food|food_court|pub|bar|cinema|theatre|pharmacy|clinic|doctors|hospital|bus_station|car_rental)$"](around:{radius},{latitude},{longitude});
           node["tourism"~"^(hotel|motel|hostel|guest_house|apartment)$"](around:{radius},{latitude},{longitude});
+          
+          // Way type businesses
+          way["shop"](around:{radius},{latitude},{longitude});
+          
         );
-        out body;
+        out center;
         """
         
         print(f"\nOverpass QL Query:")
@@ -166,13 +170,20 @@ class OSMService:
                         print("\nElement Types Found:")
                         type_counts = {}
                         for element in elements:
+                            element_type = element.get("type", "unknown")
                             tags = element.get("tags", {})
+                            
+                            type_key = f"{element_type}:"
                             if "shop" in tags:
-                                type_counts[f"shop:{tags['shop']}"] = type_counts.get(f"shop:{tags['shop']}", 0) + 1
-                            if "amenity" in tags:
-                                type_counts[f"amenity:{tags['amenity']}"] = type_counts.get(f"amenity:{tags['amenity']}", 0) + 1
-                            if "tourism" in tags:
-                                type_counts[f"tourism:{tags['tourism']}"] = type_counts.get(f"tourism:{tags['tourism']}", 0) + 1
+                                type_key += f"shop:{tags['shop']}"
+                            elif "amenity" in tags:
+                                type_key += f"amenity:{tags['amenity']}"
+                            elif "tourism" in tags:
+                                type_key += f"tourism:{tags['tourism']}"
+                            else:
+                                type_key += "untagged"
+                            
+                            type_counts[type_key] = type_counts.get(type_key, 0) + 1
                         
                         for type_name, count in type_counts.items():
                             print(f"    {type_name}: {count}")
@@ -184,11 +195,12 @@ class OSMService:
                     businesses = []
                     for element in elements:
                         tags = element.get("tags", {})
+                        element_type = element.get("type", "unknown")
                         
                         # Try to match category from different tag types
                         category = None
                         
-                        # Check shop tags first
+                        # Check shop tags
                         if "shop" in tags:
                             category = OSMService.SHOP_TO_CATEGORY_MAP.get(tags["shop"])
                         
@@ -209,13 +221,25 @@ class OSMService:
                         if not name:
                             name = tags.get("brand", "Unnamed Business")
                         
+                        # Get coordinates based on element type
+                        if element_type == "node":
+                            lat = element["lat"]
+                            lon = element["lon"]
+                        elif element_type == "way":
+                            # For ways, use the center point
+                            lat = element["center"]["lat"]
+                            lon = element["center"]["lon"]
+                        else:
+                            continue  # Skip unknown element types
+                        
                         business = {
                             "id": str(element["id"]),
                             "name": name,
                             "type": category,
-                            "latitude": element["lat"],
-                            "longitude": element["lon"],
-                            "tags": tags
+                            "latitude": lat,
+                            "longitude": lon,
+                            "tags": tags,
+                            "osm_type": element_type
                         }
                         businesses.append(business)
 
@@ -229,6 +253,13 @@ class OSMService:
                             category_counts[business["type"]] = category_counts.get(business["type"], 0) + 1
                         for category, count in category_counts.items():
                             print(f"    {category}: {count}")
+                        
+                        print("\nElement Types:")
+                        element_type_counts = {}
+                        for business in businesses:
+                            element_type_counts[business["osm_type"]] = element_type_counts.get(business["osm_type"], 0) + 1
+                        for element_type, count in element_type_counts.items():
+                            print(f"    {element_type}: {count}")
                     
                     print("=======================================================\n")
                     return businesses

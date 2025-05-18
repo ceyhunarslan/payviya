@@ -60,6 +60,10 @@ class Campaign {
     this.source = CampaignSource.MANUAL,
   }) : _description = description;
 
+  // Getters
+  String get description => _description;
+  int? get merchant_id => merchantId;  // Add getter for merchant_id
+
   factory Campaign.fromJson(Map<String, dynamic> json) {
     try {
       print('JSON data: $json');
@@ -247,8 +251,6 @@ class Campaign {
 
   bool get isExpired => DateTime.now().isAfter(endDate);
 
-  String get description => _description;
-  
   String get trimmedDescription {
     if (_description.length <= 100) return _description;
     return '${_description.substring(0, 100)}...';

@@ -109,55 +109,6 @@ async def get_nearby_businesses_with_campaigns(
         result = []
         processed_merchants = set()
 
-        # First, add merchants from database
-        for campaign, category in active_campaigns:
-            if campaign.merchant_id and campaign.merchant_id not in processed_merchants:
-                merchant = campaign.merchant
-                if merchant:
-                    processed_merchants.add(merchant.id)
-                    merchant_campaigns = [c for c, cat in active_campaigns if c.merchant_id == merchant.id]
-                    
-                    # Format campaigns and check eligibility
-                    campaign_list = []
-                    for camp in merchant_campaigns:
-                        # Check if this campaign is eligible for notification
-                        if not check_campaign_notification_eligibility(
-                            db=db,
-                            user_id=current_user.id,
-                            campaign_id=camp.id,
-                            latitude=location.latitude,
-                            longitude=location.longitude
-                        ):
-                            continue  # Skip ineligible campaigns
-                            
-                        campaign_dict = {
-                            "id": camp.id,
-                            "name": camp.name,
-                            "description": camp.description,
-                            "discount_type": camp.discount_type.value,
-                            "discount_value": float(camp.discount_value),
-                            "min_amount": float(camp.min_amount) if camp.min_amount else None,
-                            "max_discount": float(camp.max_discount) if camp.max_discount else None,
-                            "bank": camp.bank.name if camp.bank else None,
-                            "card": camp.credit_card.name if camp.credit_card else None,
-                            "requires_enrollment": camp.requires_enrollment,
-                            "enrollment_url": camp.enrollment_url,
-                            "category_id": camp.category_id
-                        }
-                        campaign_list.append(campaign_dict)
-
-                    # Only add business if it has eligible campaigns
-                    if campaign_list:
-                        business = {
-                            "id": str(merchant.id),
-                            "name": merchant.name,
-                            "type": merchant.categories.split(',')[0] if merchant.categories else "OTHER",
-                            "latitude": float(merchant.latitude),
-                            "longitude": float(merchant.longitude),
-                            "active_campaigns": campaign_list
-                        }
-                        result.append(business)
-
         # Create a map of non-merchant campaigns by category
         category_campaigns = {}
         for campaign, category in active_campaigns:
@@ -168,14 +119,63 @@ async def get_nearby_businesses_with_campaigns(
 
         # Then, add businesses from OSM that match campaign categories
         for osm_business in osm_businesses:
+            business_name = osm_business.get("name", "").strip()
             business_type = osm_business.get("type")
-            if not business_type or business_type not in category_campaigns:
-                continue
-
-            # Get matching campaigns for this business type
-            matching_campaigns = category_campaigns[business_type]
-            if not matching_campaigns:
-                continue
+            
+            print(f"\nProcessing OSM business: {business_name} (Type: {business_type})")
+            
+            # First check if this business matches any merchant-specific campaigns
+            merchant_matched = False
+            merchant_campaigns = []
+            matching_category_id = None
+            matching_merchant_id = None
+            
+            # Strict merchant name matching
+            for campaign, category in active_campaigns:
+                if campaign.merchant and campaign.merchant.name:
+                    merchant_name = campaign.merchant.name.strip()
+                    
+                    # Normalize both names for comparison
+                    business_name_norm = business_name.upper().strip()
+                    merchant_name_norm = merchant_name.upper().strip()
+                    
+                    print(f"  Comparing merchant names - OSM: '{business_name_norm}' vs DB: '{merchant_name_norm}'")
+                    
+                    # Exact match required for merchant-specific campaigns
+                    if business_name_norm == merchant_name_norm:
+                        print(f"  ✅ Found exact merchant match: {business_name}")
+                        merchant_matched = True
+                        merchant_campaigns.append(campaign)
+                        matching_category_id = category.id
+                        matching_merchant_id = campaign.merchant.id
+                        print(f"  📝 Using category ID: {matching_category_id} from merchant campaign")
+                        print(f"  📝 Using merchant ID: {matching_merchant_id} from merchant campaign")
+                        break  # Stop looking once we find an exact match
+            
+            # If we found merchant-specific campaigns, only use those
+            if merchant_matched:
+                print(f"  Using {len(merchant_campaigns)} merchant-specific campaigns")
+                matching_campaigns = merchant_campaigns
+            else:
+                # If no merchant match, check category campaigns
+                print("  No merchant match found, checking category campaigns")
+                if not business_type or business_type not in category_campaigns:
+                    print("  ❌ No matching category found")
+                    continue
+                
+                matching_campaigns = category_campaigns[business_type]
+                if not matching_campaigns:
+                    print("  ❌ No category campaigns found")
+                    continue
+                
+                # Get category ID for category-based campaigns
+                for campaign, category in active_campaigns:
+                    if category.enum == business_type:
+                        matching_category_id = category.id
+                        print(f"  📝 Using category ID: {matching_category_id} from category match")
+                        break
+                
+                print(f"  Found {len(matching_campaigns)} category campaigns")
 
             # Format campaigns and check eligibility
             campaign_list = []
@@ -188,8 +188,10 @@ async def get_nearby_businesses_with_campaigns(
                     latitude=location.latitude,
                     longitude=location.longitude
                 ):
+                    print(f"  ❌ Campaign {campaign.id} not eligible for notification")
                     continue  # Skip ineligible campaigns
-                    
+                
+                print(f"  ✅ Campaign {campaign.id} eligible for notification")
                 campaign_dict = {
                     "id": campaign.id,
                     "name": campaign.name,
@@ -202,21 +204,24 @@ async def get_nearby_businesses_with_campaigns(
                     "card": campaign.credit_card.name if campaign.credit_card else None,
                     "requires_enrollment": campaign.requires_enrollment,
                     "enrollment_url": campaign.enrollment_url,
-                    "category_id": campaign.category_id
+                    "category_id": matching_category_id,
+                    "merchant_id": campaign.merchant_id,
+                    "merchant": campaign.merchant.to_json() if campaign.merchant else None
                 }
                 campaign_list.append(campaign_dict)
 
             # Only add business if it has eligible campaigns
             if campaign_list:
                 business = {
-                    "id": osm_business["id"],
-                    "name": osm_business["name"],
+                    "id": str(osm_business["id"]),
+                    "name": business_name,
                     "type": business_type,
                     "latitude": float(osm_business["latitude"]),
                     "longitude": float(osm_business["longitude"]),
-                    "active_campaigns": campaign_list
+                    "active_campaigns": campaign_list,
                 }
                 result.append(business)
+                print(f"  ✅ Added business with {len(campaign_list)} campaigns")
 
         return result
 
