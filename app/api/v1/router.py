@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import campaigns, recommendations, banks, admin, mock_bank_api, auth, users, debug, credit_cards, health, businesses, notifications
+from app.api.v1.endpoints import campaigns, recommendations, banks, admin, mock_bank_api, auth, users, debug, credit_cards, health, businesses, notifications, campaign_reminders
 
 api_router = APIRouter()
 
@@ -20,4 +20,5 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(credit_cards.router, prefix="/credit-cards", tags=["credit-cards"])
 api_router.include_router(businesses.router, prefix="/businesses", tags=["businesses"])
-api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"]) 
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(campaign_reminders.router, prefix="/campaign-reminders", tags=["campaign-reminders"]) 

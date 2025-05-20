@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,10 @@ from app.api.v1 import deps
 from app.core import security
 from app.core.config import settings
 from app.models.user import User
+from app.models.auth import UserAuth
+from app.schemas.token import Token
+from app.schemas.user import UserCreate
+from app.schemas.auth import FCMTokenUpdate, LoginRequest
 from app.utils.password import get_password_hash, verify_password, validate_password
 from app.utils.email import send_reset_password_email
 from pydantic import BaseModel, EmailStr
@@ -36,6 +40,15 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
     temp_token: str
 
+class CustomLoginForm:
+    def __init__(
+        self,
+        username: str = Form(...),
+        password: str = Form(...),
+    ):
+        self.username = username
+        self.password = password
+
 def generate_verification_code() -> str:
     """Generate a 6-digit numeric verification code"""
     return ''.join(random.choices(string.digits, k=6))
@@ -47,6 +60,7 @@ def register_user(
 ) -> Any:
     """
     Register a new user.
+    The password is expected to be pre-hashed by the client.
     """
     # Check if user with this email exists
     user = db.query(User).filter(User.email == user_in.email).first()
@@ -56,17 +70,9 @@ def register_user(
             detail="User with this email already exists.",
         )
     
-    # Validate password
-    is_valid, error_message = validate_password(user_in.password)
-    if not is_valid:
-        raise HTTPException(
-            status_code=400,
-            detail=error_message
-        )
-    
-    # Create new user
+    # Create new user with the pre-hashed password
     user_data = user_in.dict(exclude={"password"})
-    user_data["hashed_password"] = get_password_hash(user_in.password)
+    user_data["hashed_password"] = user_in.password  # Password is already hashed by client
     
     db_user = User(**user_data)
     db.add(db_user)
@@ -76,33 +82,26 @@ def register_user(
     return db_user
 
 
-@router.post("/login/access-token", response_model=schemas.Token)
+@router.post("/login/access-token", response_model=Token)
 def login_access_token(
     db: Session = Depends(deps.get_db),
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    form_data: CustomLoginForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
-    The password should be pre-hashed by the client using SHA-256 with salt.
+    The password is expected to be pre-hashed by the client.
     """
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user:
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
-            status_code=401,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Verify the password using client-side hashing
-    if not verify_password(form_data.password, user.hashed_password):
+    elif not user.is_active:
         raise HTTPException(
-            status_code=401,
-            detail="Incorrect email or password",
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=400,
-            detail="Inactive user",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Inactive user"
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -233,8 +232,42 @@ async def reset_password(
             detail="User not found"
         )
 
-    # Hash the pre-hashed password from client with bcrypt
-    user.hashed_password = get_password_hash(request.new_password)
+    # Store the client-side hashed password as is
+    user.hashed_password = request.new_password
     db.commit()
 
-    return {"message": "Password reset successful"} 
+    return {"message": "Password reset successful"}
+
+@router.post("/fcm-token")
+def update_fcm_token(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    token_data: FCMTokenUpdate
+) -> Any:
+    """
+    Update or create FCM token for the current user.
+    """
+    # Check if a token already exists for this device
+    user_auth = db.query(UserAuth).filter(
+        UserAuth.user_id == current_user.id,
+        UserAuth.device_id == token_data.device_id
+    ).first()
+
+    if user_auth:
+        # Update existing token
+        user_auth.fcm_token = token_data.fcm_token
+        user_auth.device_type = token_data.device_type
+    else:
+        # Create new token entry
+        user_auth = UserAuth(
+            user_id=current_user.id,
+            fcm_token=token_data.fcm_token,
+            device_id=token_data.device_id,
+            device_type=token_data.device_type,
+            is_active=True
+        )
+        db.add(user_auth)
+
+    db.commit()
+    return {"status": "success", "message": "FCM token updated successfully"} 

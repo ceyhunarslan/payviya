@@ -38,6 +38,7 @@ class User(Base):
     recommendations = relationship("Recommendation", back_populates="user")
     recommendation_clicks = relationship("RecommendationClick", back_populates="user")
     notifications = relationship("NotificationHistory", back_populates="user")
+    auth_tokens = relationship("UserAuth", back_populates="user", cascade="all, delete-orphan")
 
 
 class Recommendation(Base):

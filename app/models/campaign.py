@@ -61,6 +61,7 @@ class Campaign(Base):
     category = relationship("CampaignCategory", back_populates="campaigns")
     reviewer = relationship("User", foreign_keys=[reviewed_by])
     notifications = relationship("NotificationHistory", back_populates="campaign")
+    reminders = relationship("CampaignReminder", back_populates="campaign", passive_deletes=True)
 
     def to_json(self):
         """Convert campaign object to JSON serializable dictionary"""
@@ -89,6 +90,22 @@ class Campaign(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+class CampaignReminder(Base):
+    __tablename__ = "campaign_reminders"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"))
+    remind_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    is_sent = Column(Boolean, default=False)
+
+    # Relationship with cascade delete
+    campaign = relationship("Campaign", back_populates="reminders", passive_deletes=True)
 
 
 class Bank(Base):
@@ -181,9 +198,8 @@ class ScrapedCampaign(Campaign):
     id = Column(Integer, ForeignKey("campaigns.id"), primary_key=True)
     is_processed = Column(Boolean, default=False)
     scrape_source = Column(Text)
-    scrape_attempted_at = Column(DateTime(timezone=True), server_default=func.now())
     scrape_log = Column(Text)
 
     __mapper_args__ = {
-        'polymorphic_identity': 'scraped_campaign',
-    } 
+        'polymorphic_identity': 'scraped_campaign'
+    }

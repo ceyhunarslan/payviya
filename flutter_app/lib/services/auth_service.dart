@@ -9,6 +9,8 @@ import 'package:dio/dio.dart';
 import 'package:payviya_app/main.dart' show API_BASE_URL;
 import 'package:payviya_app/services/storage_service.dart';
 import 'package:payviya_app/utils/password_utils.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class AuthService {
   static const storage = FlutterSecureStorage();
@@ -53,74 +55,122 @@ class AuthService {
   }
 
   // Login with email and password
-  static Future<User> login({
-    required String email,
-    required String password,
-  }) async {
+  static Future<User> login({required String email, required String password}) async {
     try {
-      print('Login attempt - Email: $email');
+      print('Sending login request to: $API_BASE_URL/auth/login/access-token');
       
       // Hash the password before sending
       final hashedPassword = PasswordUtils.hashPassword(password);
-      print('Password hashed successfully');
-      print('Hashed password length: ${hashedPassword.length}');
       
+      // Use the appropriate content type for form data
+      final headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      };
+      
+      // Prepare the request body
       final body = {
         'username': email,
         'password': hashedPassword,
       };
-      print('Preparing request body: $body');
       
+      // Convert the body to URL encoded format
+      final encodedBody = body.entries
+          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+          
+      // Send the POST request directly without using ApiService.post
+      final uri = Uri.parse('$API_BASE_URL/auth/login/access-token');
       final response = await http.post(
-        Uri.parse('$API_BASE_URL/auth/login/access-token'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: body,
+        uri, 
+        headers: headers, 
+        body: encodedBody
       );
       
+      // Reset content type for future requests
+      ApiService.instance.dio.options.headers['Content-Type'] = 'application/json';
+      
       print('Login response status: ${response.statusCode}');
-      print('Login response headers: ${response.headers}');
-      print('Login response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
+        print('Login response body:\n${response.body}');
         
         // Save the token
         final token = responseData['access_token'];
-        if (token == null || token.isEmpty) {
-          throw Exception('Token not found in response');
-        }
-        
-        print('Token received, saving to storage...');
         await storage.write(key: _tokenKey, value: token);
         
-        // Set the token in the API service
-        print('Setting token in API service...');
+        // Set token in API service for subsequent requests
         ApiService.instance.updateToken(token);
         
-        // Fetch the user profile after login and return it
-        try {
-          print('Fetching user profile...');
-          User? user = await UserService.fetchUserProfile();
-          if (user == null) {
-            throw Exception('Kullanıcı profili alınamadı');
-          }
-          print('User profile fetched successfully: ${user.name}');
-          return user;
-        } catch (profileError) {
-          print('Error fetching user profile after login: $profileError');
-          throw Exception('Giriş başarılı, ancak kullanıcı bilgileri alınamadı');
+        // Fetch and return user profile
+        final userProfile = await UserService.fetchUserProfile();
+        if (userProfile == null) {
+          throw Exception('Failed to fetch user profile after login');
         }
+        
+        return userProfile;
       } else {
-        print('Login failed with status: ${response.statusCode}');
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['detail'] ?? 'Giriş başarısız');
+        throw Exception('Login failed with status: ${response.statusCode}');
       }
     } catch (e) {
       print('Login error: $e');
-      // Clear any existing token on login failure
-      await storage.delete(key: _tokenKey);
-      await ApiService.instance.clearToken();
-      throw Exception('Giriş yapılamadı: $e');
+      throw Exception('Login failed: $e');
+    }
+  }
+
+  // Update FCM token
+  static Future<void> updateFCMToken() async {
+    try {
+      // Check if user is logged in
+      final isUserLoggedIn = await isLoggedIn();
+      if (!isUserLoggedIn) {
+        print('User is not logged in, skipping FCM token update');
+        return;
+      }
+
+      // Get FCM token
+      String? fcmToken;
+      try {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+        print('FCM Token obtained: $fcmToken');
+      } catch (e) {
+        print('Error getting FCM token: $e');
+        return;
+      }
+
+      // Get device info
+      String deviceId = '';
+      String deviceType = '';
+      try {
+        final deviceInfo = await DeviceInfoPlugin().deviceInfo;
+        if (deviceInfo is AndroidDeviceInfo) {
+          deviceId = deviceInfo.id;
+          deviceType = 'android';
+        } else if (deviceInfo is IosDeviceInfo) {
+          deviceId = deviceInfo.identifierForVendor ?? '';
+          deviceType = 'ios';
+        }
+        print('Device info obtained - ID: $deviceId, Type: $deviceType');
+      } catch (e) {
+        print('Error getting device info: $e');
+        return;
+      }
+
+      if (fcmToken != null && deviceId.isNotEmpty && deviceType.isNotEmpty) {
+        print('FCM Token update request - Device ID: $deviceId, Type: $deviceType, Token: $fcmToken');
+        await ApiService.instance.dio.post(
+          '/auth/fcm-token',
+          data: {
+            'fcm_token': fcmToken,
+            'device_id': deviceId,
+            'device_type': deviceType,
+          },
+        );
+        print('FCM token updated successfully');
+      }
+    } catch (e) {
+      print('Error updating FCM token: $e');
     }
   }
 

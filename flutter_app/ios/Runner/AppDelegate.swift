@@ -110,6 +110,10 @@ import UserNotifications
     // Try to get data from FCM format
     if let data = userInfo["data"] as? [String: Any] {
       notificationData = data
+      // Ensure type is properly extracted from data
+      if let type = data["type"] as? String {
+        notificationData["type"] = type
+      }
     }
     // Try to get data from APNS format
     else if let aps = userInfo["aps"] as? [String: Any],
@@ -117,17 +121,25 @@ import UserNotifications
       notificationData["title"] = alert["title"]
       notificationData["body"] = alert["body"]
       
-      // Extract custom data
+      // Extract custom data and ensure type is preserved
       for (key, value) in userInfo {
         if key as? String != "aps" {
-          notificationData[key as? String ?? ""] = value
+          if key as? String == "type" {
+            notificationData["type"] = value
+          } else {
+            notificationData[key as? String ?? ""] = value
+          }
         }
       }
     }
     // Try to get data directly
     else {
       for (key, value) in userInfo {
-        notificationData[key as? String ?? ""] = value
+        if key as? String == "type" {
+          notificationData["type"] = value
+        } else {
+          notificationData[key as? String ?? ""] = value
+        }
       }
     }
     

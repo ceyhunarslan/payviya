@@ -1,14 +1,18 @@
 import logging
 import os
 import sys
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import text
 from app.db.base import SessionLocal
 from app.routes import location_routes
+from datetime import datetime
+import pytz
+from functools import partial
 
 # Add the parent directory to path to fix import issues
 parent_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,10 +21,10 @@ sys.path.append(os.path.dirname(parent_dir))
 from app.api.v1.router import api_router
 from app.models.campaign import CampaignSource
 from app.core.config import settings
-from app.tasks.campaign_sync_task import schedule_campaign_sync
+from app.tasks.reminder_notifications import send_reminder_notifications
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Custom JSON response class with UTF-8 encoding
@@ -48,11 +52,11 @@ app.add_middleware(
     max_age=86400,  # Cache preflight requests for 24 hours
 )
 
-# Set up APScheduler for background tasks
-scheduler = BackgroundScheduler()
+# Initialize scheduler
+scheduler = AsyncIOScheduler()
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     """Initialize services on startup"""
     logger.info("Starting application...")
     
@@ -60,51 +64,63 @@ def startup_event():
     print(f"Current directory: {os.getcwd()}")
     print(f"Python path: {sys.path}")
     
-    # Fix campaign source enum values in database
-    fix_campaign_source_values()
+    # Configure scheduler with proper async handling
+    scheduler.configure(timezone=pytz.UTC)
     
-    # Schedule campaign sync tasks
-    schedule_campaign_sync(scheduler)
+    # Schedule reminder notification task (every 5 minutes)
+    scheduler.add_job(
+        send_reminder_notifications,
+        'interval',
+        minutes=5,
+        name='reminder_notifications',
+        misfire_grace_time=300  # Allow job to be late by up to 5 minutes
+    )
+    
+    # Add immediate run of reminder notifications
+    scheduler.add_job(
+        send_reminder_notifications,
+        'date',
+        run_date=datetime.utcnow(),
+        name='immediate_reminder_check'
+    )
     
     # Start the scheduler
     scheduler.start()
     
     logger.info("Application startup complete")
 
-def fix_campaign_source_values():
-    """Convert lowercase enum values to uppercase for campaign sources"""
-    try:
-        db = SessionLocal()
-        try:
-            # Update manual -> MANUAL
-            db.execute(text("UPDATE campaigns SET source = 'MANUAL' WHERE source = 'manual'"))
-            # Update other sources
-            db.execute(text("UPDATE campaigns SET source = 'BANK_API' WHERE source = 'bank_api'"))
-            db.execute(text("UPDATE campaigns SET source = 'FINTECH_API' WHERE source = 'fintech_api'"))
-            db.execute(text("UPDATE campaigns SET source = 'PARTNER_API' WHERE source = 'partner_api'"))
-            db.commit()
-            logger.info("Campaign source values updated to uppercase in database")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error updating campaign source values: {e}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Error connecting to database during migration: {e}")
-
 @app.on_event("shutdown")
-def shutdown_event():
-    """Clean up on shutdown"""
+async def shutdown_event():
+    """Cleanup on application shutdown"""
     logger.info("Shutting down application...")
     
-    # Shut down the scheduler gracefully to avoid job lookup errors
-    if scheduler.running:
-        try:
-            # Gracefully shutdown the scheduler
-            scheduler.shutdown(wait=False)
-            logger.info("Scheduler has been shut down")
-        except Exception as e:
-            logger.error(f"Error shutting down scheduler: {e}")
+    # Shutdown scheduler gracefully
+    scheduler.shutdown(wait=False)
+    
+    # Close any remaining event loops
+    try:
+        loop = asyncio.get_running_loop()
+        
+        # Get all tasks
+        tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task()]
+        
+        if tasks:
+            # Cancel all tasks
+            for task in tasks:
+                task.cancel()
+            
+            # Wait for all tasks to complete with a timeout
+            try:
+                await asyncio.wait(tasks, timeout=5.0)
+                logger.info(f"Successfully cancelled {len(tasks)} tasks")
+            except asyncio.TimeoutError:
+                logger.warning("Timeout while waiting for tasks to cancel")
+        
+        # Stop the loop
+        if not loop.is_closed():
+            loop.stop()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {str(e)}")
     
     logger.info("Application shutdown complete")
 

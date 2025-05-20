@@ -9,6 +9,9 @@ import 'package:payviya_app/services/user_service.dart';
 import 'package:payviya_app/widgets/user_avatar.dart';
 import 'package:payviya_app/screens/notifications/notifications_screen.dart';
 import 'package:payviya_app/widgets/notification_icon_with_badge.dart';
+import 'package:payviya_app/services/auth_service.dart';
+import 'package:payviya_app/services/location_service.dart';
+import 'package:payviya_app/services/campaign_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int initialTabIndex;
@@ -29,6 +32,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   late PageController _pageController;
   String _userName = '';
   String _userSurname = '';
+  late LocationService _locationService;
 
   final List<String> _tabTitles = [
     'Ana Sayfa',
@@ -40,9 +44,11 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _locationService = LocationService();
     _currentIndex = widget.initialTabIndex;
     _pageController = PageController(initialPage: _currentIndex);
     _loadUserData();
+    _initializeServices();
   }
 
   Future<void> _loadUserData() async {
@@ -59,6 +65,27 @@ class DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _initializeServices() async {
+    try {
+      // Update FCM token
+      await AuthService.updateFCMToken();
+      
+      // Initialize location service
+      final hasPermission = await _locationService.handlePermission();
+      if (hasPermission) {
+        _locationService.startLocationTracking((position) {
+          // Handle location updates
+          print('📌 Location update received: ${position.latitude}, ${position.longitude}');
+        });
+      }
+      
+      // Initialize campaign service
+      await CampaignService.initialize();
+    } catch (e) {
+      print('Error initializing services: $e');
+    }
+  }
+
   final List<Widget> _tabs = [
     const HomeTab(),
     const CampaignDiscoveryScreen(showAppBar: false),
@@ -69,6 +96,7 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _locationService.stopLocationTracking();
     super.dispose();
   }
 

@@ -23,7 +23,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (message.data['type'] == 'TEST_SCREEN') {
     print('🧪 Background: Navigating to test screen');
     NavigationService.push('/test');
-  } else if (message.data['type'] == 'NEARBY_CAMPAIGN' && message.data['campaignId'] != null) {
+  } else if ((message.data['type'] == 'NEARBY_CAMPAIGN' || message.data['type'] == 'REMINDER_CAMPAIGN') && message.data['campaignId'] != null) {
     print('🎫 Background: Handling campaign notification');
     try {
       final id = int.parse(message.data['campaignId'].toString());
@@ -39,8 +39,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       print('✨ Background: Campaign navigation completed');
     } catch (e) {
       print('❌ Background: Error in campaign navigation: $e');
-      print('🔄 Background: Falling back to test screen');
-      NavigationService.push('/test');
+      print('🔄 Background: Falling back to dashboard');
+      NavigationService.navigateToDashboard();
     }
   }
 }
@@ -304,11 +304,14 @@ class PushNotificationService {
         return;
       }
       
-      if (type == 'NEARBY_CAMPAIGN') {
+      if (type == 'NEARBY_CAMPAIGN' || type == 'REMINDER_CAMPAIGN') {
         final campaignId = data['campaignId'] ?? 
                          (data['data'] is Map ? data['data']['campaignId'] : null);
         final notificationId = data['notificationId'] ??
                          (data['data'] is Map ? data['data']['notificationId'] : null);
+                         
+        print('📝 Extracted campaignId: $campaignId');
+        print('📝 Extracted notificationId: $notificationId');
                          
         if (campaignId != null) {
           print('🎫 Handling campaign notification');
@@ -337,8 +340,8 @@ class PushNotificationService {
           } catch (e) {
             print('❌ Error in campaign navigation: $e');
             await _log('❌ Error in campaign navigation: $e');
-            print('🔄 Falling back to test screen');
-            await _log('🔄 Falling back to test screen');
+            print('🔄 Falling back to dashboard');
+            await _log('🔄 Falling back to dashboard');
             
             NavigationService.navigateToDashboard();
           }

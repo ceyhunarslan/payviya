@@ -16,16 +16,16 @@ def verify_password(client_hashed_password: str, stored_hashed_password: str) ->
     The client_hashed_password is the SHA-256 hash from the client,
     and stored_hashed_password is the bcrypt hash stored in the database.
     """
-    # The client has already done the SHA-256 hashing, so we just need to verify with bcrypt
-    return pwd_context.verify(client_hashed_password, stored_hashed_password)
+    # Since the client sends us the final base64 encoded hash,
+    # we just need to compare it with what's stored
+    return client_hashed_password == stored_hashed_password
 
 def get_password_hash(client_hashed_password: str) -> str:
     """
-    Hash a password for storage.
-    The client_hashed_password is expected to be already hashed by the client using SHA-256.
-    We'll hash it again using bcrypt for storage.
+    Store the client-side hashed password as is.
+    The client_hashed_password is already properly hashed by the client.
     """
-    return pwd_context.hash(client_hashed_password)
+    return client_hashed_password
 
 def validate_password(password: str) -> Tuple[bool, str]:
     """

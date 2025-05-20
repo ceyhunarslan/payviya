@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:payviya_app/core/theme/app_theme.dart';
 import 'package:payviya_app/models/campaign.dart';
 import 'package:payviya_app/services/api_service.dart';
+import 'package:payviya_app/services/reminder_service.dart';
+import 'package:payviya_app/widgets/custom_snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:payviya_app/utils/logo_helper.dart';
 
@@ -19,13 +21,107 @@ class CampaignDetailScreen extends StatefulWidget {
 
 class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
   Campaign? _campaign;
+  bool _hasReminder = false;
+  bool _isLoading = false;
   
   @override
   void initState() {
     super.initState();
     _campaign = widget.campaign;
+    _checkReminder();
   }
-  
+
+  Future<void> _checkReminder() async {
+    if (_campaign == null) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      final hasReminder = await ReminderService.hasReminderForCampaign(_campaign!.id);
+      setState(() => _hasReminder = hasReminder);
+    } catch (e) {
+      print('Error checking reminder: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showDateTimePicker() async {
+    final DateTime? date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: _campaign!.endDate,
+    );
+
+    if (date != null) {
+      if (!mounted) return;
+      
+      final TimeOfDay? time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (time != null && mounted) {
+        final DateTime selectedDateTime = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          time.hour,
+          time.minute,
+        );
+
+        try {
+          setState(() => _isLoading = true);
+          await ReminderService.createReminder(
+            campaignId: _campaign!.id,
+            remindAt: selectedDateTime,
+          );
+          if (mounted) {
+            CustomSnackbar.show(
+              context,
+              'Hatırlatıcı başarıyla oluşturuldu',
+            );
+            setState(() => _hasReminder = true);
+          }
+        } catch (e) {
+          if (mounted) {
+            CustomSnackbar.show(
+              context,
+              'Hatırlatıcı oluşturulurken bir hata oluştu',
+              isError: true,
+            );
+          }
+        } finally {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  Future<void> _removeReminder() async {
+    try {
+      setState(() => _isLoading = true);
+      await ReminderService.removeReminder(_campaign!.id);
+      if (mounted) {
+        CustomSnackbar.show(
+          context,
+          'Hatırlatıcı başarıyla kaldırıldı',
+        );
+        setState(() => _hasReminder = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomSnackbar.show(
+          context,
+          'Hatırlatıcı kaldırılırken bir hata oluştu',
+          isError: true,
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _launchURL(String url) async {
     if (await canLaunch(url)) {
       await launch(url);
@@ -239,6 +335,36 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
                           color: Colors.grey.shade800,
                           height: 1.5,
                         ),
+                      ),
+
+                      // Reminder button
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ElevatedButton.icon(
+                                onPressed: _hasReminder ? _removeReminder : _showDateTimePicker,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _hasReminder ? Colors.red : bankColor,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: Icon(
+                                  _hasReminder ? Icons.notifications_off : Icons.notifications_active,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  _hasReminder ? 'Hatırlatmayı Kaldır' : 'Hatırlat',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                       ),
                     ],
                   ),
