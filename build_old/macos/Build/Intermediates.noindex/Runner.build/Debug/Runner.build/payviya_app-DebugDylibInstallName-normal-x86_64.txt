@@ -1,1 +1,0 @@
-@rpath/payviya_app.debug.dylib
