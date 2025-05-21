@@ -31,10 +31,16 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
   bool _isSearching = true;
   String _searchQuery = '';
   String _selectedFilter = 'Hepsi';
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _errorMessage;
   String _userName = '';
   String _userSurname = '';
+  
+  // Pagination variables
+  bool _hasMore = true;
+  int _currentPage = 0;
+  static const int _pageSize = 20;
+  bool _isLoadingMore = false;
   
   // Category data
   List<Map<String, dynamic>> _categories = [];
@@ -82,14 +88,23 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     _loadCreditCards();
     _loadCampaigns();
     
-    // Add scroll controller listener
+    // Add scroll controller listener for pagination
     _scrollController.addListener(() {
       if (!mounted) return;
+      
+      // Save scroll position
       PageStorage.of(context)?.writeState(
         context,
         _scrollController.offset,
         identifier: 'campaign_discovery_scroll',
       );
+      
+      // Check if we need to load more
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8) {
+        if (!_isLoading && !_isLoadingMore && _hasMore) {
+          _loadMoreCampaigns();
+        }
+      }
     });
   }
   
@@ -175,28 +190,74 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     }
   }
   
-  // Load campaigns from API
+  // Load initial campaigns
   Future<void> _loadCampaigns() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentPage = 0;
+      _hasMore = true;
     });
     
     try {
-      final campaigns = await ApiService.getCampaigns();
+      final campaigns = await ApiService.getCampaigns(
+        skip: 0,
+        limit: _pageSize,
+      );
+      
+      if (!mounted) return;
+      
       setState(() {
         _campaigns = campaigns;
         _isLoading = false;
+        _hasMore = campaigns.length >= _pageSize;
+        if (campaigns.isNotEmpty) {
+          _currentPage = 1;
+        }
       });
     } catch (e) {
+      if (!mounted) return;
+      
       setState(() {
         _errorMessage = 'Kampanyalar yüklenirken bir hata oluştu: $e';
         _isLoading = false;
       });
     }
   }
-  
-  // Search campaigns from API
+
+  // Load more campaigns for pagination
+  Future<void> _loadMoreCampaigns() async {
+    if (_isLoadingMore || !_hasMore) return;
+    
+    setState(() {
+      _isLoadingMore = true;
+    });
+    
+    try {
+      final newCampaigns = await ApiService.getCampaigns(
+        skip: _currentPage * _pageSize,
+        limit: _pageSize,
+      );
+      
+      setState(() {
+        if (newCampaigns.isEmpty) {
+          _hasMore = false;
+        } else {
+          _campaigns.addAll(newCampaigns);
+          _currentPage++;
+          _hasMore = newCampaigns.length >= _pageSize;
+        }
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Daha fazla kampanya yüklenirken bir hata oluştu: $e';
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  // Search campaigns with pagination
   Future<void> _searchCampaigns(String query) async {
     if (query.isEmpty) {
       _loadCampaigns();
@@ -206,6 +267,8 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _currentPage = 0;
+      _hasMore = true;
     });
     
     try {
@@ -213,6 +276,10 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
       setState(() {
         _campaigns = campaigns;
         _isLoading = false;
+        _hasMore = campaigns.length >= _pageSize;
+        if (campaigns.isNotEmpty) {
+          _currentPage = 1;
+        }
       });
     } catch (e) {
       setState(() {
@@ -224,7 +291,7 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
   
   // Filter campaigns based on selected filter, category and card
   List<Campaign> _getFilteredCampaigns() {
-    var filteredCampaigns = _campaigns;
+    var filteredCampaigns = List<Campaign>.from(_campaigns);
     
     // First apply category filter
     if (_selectedCategory != 'Tümü') {
@@ -268,6 +335,16 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
     }
     
     return filteredCampaigns;
+  }
+
+  // Reset pagination when filters change
+  void _resetPagination() {
+    setState(() {
+      _currentPage = 0;
+      _hasMore = true;
+      _campaigns = [];
+      _loadCampaigns();
+    });
   }
 
   // Show category filter modal
@@ -343,7 +420,9 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      this.setState(() {}); // Refresh main screen
+                      this.setState(() {
+                        _resetPagination(); // Reset pagination when filter changes
+                      });
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
@@ -446,7 +525,9 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      this.setState(() {}); // Refresh main screen
+                      this.setState(() {
+                        _resetPagination(); // Reset pagination when card filter changes
+                      });
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
@@ -681,8 +762,28 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                             padding: const EdgeInsets.all(16),
                             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                             controller: _scrollController,
-                            itemCount: filteredCampaigns.length,
+                            itemCount: filteredCampaigns.length + (_hasMore ? 1 : 0),
                             itemBuilder: (context, index) {
+                              // Show loading indicator at the bottom
+                              if (index == filteredCampaigns.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Theme.of(context).primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              
+                              // Show campaign card
                               final campaign = filteredCampaigns[index];
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
@@ -691,7 +792,6 @@ class _CampaignDiscoveryScreenState extends State<CampaignDiscoveryScreen> {
                                   style: CampaignTemplateStyle.discover,
                                   onTap: () {
                                     FocusScope.of(context).unfocus();
-                                    _scrollController.jumpTo(0);
                                     NavigationService.navigateToCampaignDetail(campaign);
                                   },
                                 ),
