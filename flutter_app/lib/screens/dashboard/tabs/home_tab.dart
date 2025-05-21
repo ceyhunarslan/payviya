@@ -31,6 +31,7 @@ class _HomeTabState extends State<HomeTab> {
   String? _errorMessage = '';
   String _userName = '';
   String _userSurname = '';
+  late ScrollController _scrollController;
   
   // Campaign data
   List<Campaign> _recentCampaigns = [];
@@ -50,7 +51,14 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     _loadDashboardData();
+  }
+  
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
   
   Future<void> _loadDashboardData() async {
@@ -131,131 +139,118 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: _isLoading 
+      backgroundColor: Colors.grey.shade50,
+      body: _isLoading 
           ? const Center(child: LoadingIndicator())
           : _hasError 
               ? _buildErrorIndicator()
               : RefreshIndicator(
                   onRefresh: _loadDashboardData,
-                  child: _buildDashboardContent(),
-                ),
-      ),
-    );
-  }
-  
-  Widget _buildDashboardContent() {
-    developer.log("Building dashboard content. lastCapturedCampaign is ${_lastCapturedCampaign != null ? 'NOT null' : 'null'}");
-    
-    return CustomScrollView(
-      slivers: [
-        // Content
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 16),
-                
-                // 1. Last captured campaign - only show if not null
-                if (_lastCapturedCampaign != null) 
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DashboardCard(
-                        title: 'Son Eklenen Kampanya',
-                        trailing: const Icon(
-                          Icons.new_releases_outlined,
-                          color: AppTheme.primaryColor,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 1. Last captured campaign - only show if not null
+                        if (_lastCapturedCampaign != null) 
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                DashboardCard(
+                                  title: 'Son Eklenen Kampanya',
+                                  trailing: const Icon(
+                                    Icons.new_releases_outlined,
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                  child: CampaignTemplate(
+                                    campaign: _lastCapturedCampaign!,
+                                    style: CampaignTemplateStyle.discover,
+                                    width: double.infinity,
+                                    onTap: () {
+                                      NavigationService.navigateToCampaignDetail(_lastCapturedCampaign!);
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ),
+                          )
+                        else
+                          _buildLastCapturedPlaceholder(),
+                        
+                        // 3. Recommended campaigns
+                        DashboardCard(
+                          title: 'En İyi Fırsatlar',
+                          subtitle: 'Size özel seçilmiş en avantajlı kampanyalar',
+                          trailing: const Icon(
+                            Icons.star,
+                            color: AppTheme.primaryColor,
+                          ),
+                          child: _recommendedCampaigns.isNotEmpty
+                            ? Column(
+                                children: [
+                                  // First campaign gets special treatment as the "best offer"
+                                  if (_recommendedCampaigns.isNotEmpty) 
+                                    GestureDetector(
+                                      onTap: () {
+                                        NavigationService.navigateToCampaignDetail(_recommendedCampaigns.first);
+                                      },
+                                      child: CampaignTemplate(
+                                        campaign: _recommendedCampaigns.first,
+                                        style: CampaignTemplateStyle.discover,
+                                        width: double.infinity,
+                                        onTap: () {
+                                          NavigationService.navigateToCampaignDetail(_recommendedCampaigns.first);
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              )
+                            : _buildNoRecommendationsPlaceholder(),
                         ),
-                        child: CampaignTemplate(
-                          campaign: _lastCapturedCampaign!,
-                          style: CampaignTemplateStyle.discover,
-                          width: double.infinity,
-                          onTap: () {
-                            NavigationService.navigateToCampaignDetail(_lastCapturedCampaign!);
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  )
-                else
-                  _buildLastCapturedPlaceholder(),
-                
-                // 3. Recommended campaigns
-                DashboardCard(
-                  title: 'En İyi Fırsatlar',
-                  subtitle: 'Size özel seçilmiş en avantajlı kampanyalar',
-                  trailing: const Icon(
-                    Icons.star,
-                    color: AppTheme.primaryColor,
-                  ),
-                  child: _recommendedCampaigns.isNotEmpty
-                    ? Column(
-                        children: [
-                          // First campaign gets special treatment as the "best offer"
-                          if (_recommendedCampaigns.isNotEmpty) 
-                            GestureDetector(
-                              onTap: () {
-                                // Navigate to campaign detail
-                              },
-                              child: CampaignTemplate(
-                                campaign: _recommendedCampaigns.first,
-                                style: CampaignTemplateStyle.discover,
-                                width: double.infinity,
-                                onTap: () {
-                                  // Navigate to campaign detail
+                        
+                        // 4. Recent campaigns
+                        if (_recentCampaigns.isNotEmpty) ...[
+                          DashboardCard(
+                            title: 'Yeni Eklenen Kampanyalar',
+                            trailing: const Icon(
+                              Icons.new_releases_outlined,
+                              color: AppTheme.primaryColor,
+                            ),
+                            child: SizedBox(
+                              height: 255,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _recentCampaigns.length,
+                                itemBuilder: (context, index) {
+                                  final campaign = _recentCampaigns[index];
+                                  return CampaignTemplate(
+                                    campaign: campaign,
+                                    style: CampaignTemplateStyle.discover,
+                                    width: 280,
+                                    onTap: () {
+                                      NavigationService.navigateToCampaignDetail(campaign);
+                                    },
+                                  );
                                 },
                               ),
                             ),
+                          ),
                         ],
-                      )
-                    : _buildNoRecommendationsPlaceholder(),
-                ),
-                
-                // 4. Recent campaigns
-                if (_recentCampaigns.isNotEmpty) ...[
-                  DashboardCard(
-                    title: 'Yeni Eklenen Kampanyalar',
-                    trailing: const Icon(
-                      Icons.new_releases_outlined,
-                      color: AppTheme.primaryColor,
-                    ),
-                    child: SizedBox(
-                      height: 255,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _recentCampaigns.length,
-                        itemBuilder: (context, index) {
-                          final campaign = _recentCampaigns[index];
-                          return CampaignTemplate(
-                            campaign: campaign,
-                            style: CampaignTemplateStyle.discover,
-                            width: 280,
-                            onTap: () {
-                              // Navigate to campaign detail
-                            },
-                          );
-                        },
-                      ),
+                        
+                        // 5. Campaigns by category
+                        if (_campaignsByCategory.isNotEmpty) ...[
+                          _buildCategoryCampaigns(),
+                        ],
+                        
+                        const SizedBox(height: 32),
+                      ],
                     ),
                   ),
-                ],
-                
-                // 5. Campaigns by category
-                if (_campaignsByCategory.isNotEmpty) ...[
-                  _buildCategoryCampaigns(),
-                ],
-                
-                const SizedBox(height: 32),
-              ],
-            ),
-          ),
-        ),
-      ],
+                ),
     );
   }
   

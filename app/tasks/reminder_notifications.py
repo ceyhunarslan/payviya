@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.campaign_reminder import CampaignReminder
@@ -6,6 +6,7 @@ from app.models.campaign import Campaign
 from app.models.user import User
 from app.models.auth import UserAuth
 from app.services.notification_service import NotificationService
+from app.models.notification import NotificationHistory
 import asyncio
 import logging
 from sqlalchemy.orm import joinedload
@@ -16,6 +17,19 @@ import pytz
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Add formatter to ch
+ch.setFormatter(formatter)
+
+# Add ch to logger
+logger.addHandler(ch)
+
 async def send_single_reminder(reminder: CampaignReminder, notification_service: NotificationService, db: Session):
     """Send a single reminder notification"""
     try:
@@ -23,6 +37,12 @@ async def send_single_reminder(reminder: CampaignReminder, notification_service:
         if not campaign:
             logger.warning(f"Campaign not found for reminder {reminder.id}")
             return
+
+        logger.info("=== REMINDER DEBUG INFO ===")
+        logger.info(f"Reminder ID: {reminder.id}")
+        logger.info(f"Reminder Time: {reminder.remind_at}")
+        logger.info(f"Current Time (Local): {datetime.now(pytz.timezone('Europe/Istanbul'))}")
+        logger.info("========================")
 
         # Get user's active FCM tokens
         user_auth_tokens = db.query(UserAuth).filter(
@@ -38,40 +58,41 @@ async def send_single_reminder(reminder: CampaignReminder, notification_service:
         logger.info(f"Sending reminder notification for campaign {campaign.name} (ID: {campaign.id}) to user {reminder.user_id}")
 
         success_count = 0
-        # Send notification to all user's devices
-        for auth_token in user_auth_tokens:
-            # Send notification
-            result = await notification_service.send_notification({
-                "user_id": int(reminder.user_id),  # Convert user_id to integer
-                "title": f"Kampanya Hatırlatması: {campaign.name}",
-                "body": campaign.description[:100] + "...",
-                "campaign_id": campaign.id,
-                "category_id": campaign.category_id,
-                "merchant_id": campaign.merchant_id if campaign.merchant_id else None,
-                "latitude": campaign.merchant.latitude if campaign.merchant else 0.0,
-                "longitude": campaign.merchant.longitude if campaign.merchant else 0.0,
-                "data": {
-                    "type": "REMINDER_CAMPAIGN",
-                    "campaignId": str(campaign.id)
-                },
-                "fcm_token": auth_token.fcm_token
-            }, db)
-
-            if result.get("success", False):
+        for user_auth in user_auth_tokens:
+            try:
+                # Prepare notification data
+                notification_data = {
+                    'title': f"{campaign.name} - Hatırlatma",
+                    'body': f"'{campaign.name}' kampanyası için hatırlatma zamanı geldi!",
+                    'data': {
+                        "type": "REMINDER_CAMPAIGN",
+                        "campaignId": campaign.id,
+                        "reminderId": reminder.id
+                    },
+                    'fcm_token': user_auth.fcm_token,
+                    'user_id': reminder.user_id,
+                    'campaign_id': campaign.id  # Add campaign_id for notification history
+                }
+                
+                # Send FCM notification directly
+                await notification_service.send_notification(notification_data, db)
                 success_count += 1
-                logger.info(f"Successfully sent reminder notification for campaign {campaign.id} to device {auth_token.device_id}")
-            else:
-                logger.error(f"Failed to send notification for reminder {reminder.id} to device {auth_token.device_id}: {result.get('message')}")
+                
+            except Exception as e:
+                logger.error(f"Error sending notification to token {user_auth.fcm_token}: {str(e)}")
+                continue
 
         if success_count > 0:
-            # Mark as sent if at least one notification was successful
+            # Mark reminder as sent if at least one notification was successful
             reminder.is_sent = True
             db.commit()
-            logger.info(f"Successfully sent reminder notifications for campaign {campaign.id} to {success_count} devices")
+            logger.info(f"Successfully sent {success_count} notifications for reminder {reminder.id}")
+        else:
+            logger.warning(f"Failed to send any notifications for reminder {reminder.id}")
 
     except Exception as e:
-        logger.error(f"Error sending notification for reminder {reminder.id}: {str(e)}")
-        db.rollback()
+        logger.error(f"Error processing reminder {reminder.id}: {str(e)}")
+        raise e
 
 async def send_reminder_notifications():
     """
@@ -83,12 +104,31 @@ async def send_reminder_notifications():
     db = SessionLocal()
     notification_service = NotificationService()
     try:
-        # Get current time in UTC
-        current_time = datetime.now(pytz.UTC)
-        logger.info(f"Current UTC time: {current_time}")
+        # Get current time in local timezone
+        local_tz = pytz.timezone('Europe/Istanbul')
+        local_now = datetime.now(local_tz)
+        logger.info(f"Current local time: {local_now}")
 
-        # Get all unsent reminders that are due
-        # First, convert remind_at to UTC for comparison
+        # Debug için tüm aktif hatırlatmaları kontrol et
+        all_reminders = (
+            db.query(CampaignReminder)
+            .filter(
+                CampaignReminder.is_sent == False,
+                CampaignReminder.is_active == True
+            )
+            .all()
+        )
+
+        logger.info(f"Total active reminders found: {len(all_reminders)}")
+        for reminder in all_reminders:
+            logger.info(f"Checking reminder ID: {reminder.id}")
+            logger.info(f"Reminder time: {reminder.remind_at} ({type(reminder.remind_at)})")
+            logger.info(f"Current time: {local_now} ({type(local_now)})")
+            logger.info(f"Is reminder due? {reminder.remind_at <= local_now}")
+            logger.info("---")
+
+        # Get all unsent and active reminders that are due
+        # Veritabanındaki değerler zaten yerel saat olduğu için direkt karşılaştır
         due_reminders = (
             db.query(CampaignReminder)
             .options(
@@ -96,7 +136,8 @@ async def send_reminder_notifications():
             )
             .filter(
                 CampaignReminder.is_sent == False,
-                func.timezone('UTC', CampaignReminder.remind_at) <= current_time
+                CampaignReminder.is_active == True,
+                CampaignReminder.remind_at <= local_now
             )
             .all()
         )
@@ -107,18 +148,15 @@ async def send_reminder_notifications():
 
         logger.info(f"Found {len(due_reminders)} due reminders")
         
-        # Log reminder details for debugging
         for reminder in due_reminders:
-            logger.info(f"Processing reminder ID: {reminder.id}, remind_at (UTC): {reminder.remind_at}, current_time (UTC): {current_time}")
-
-        # Send notifications for all due reminders
-        for reminder in due_reminders:
-            await send_single_reminder(reminder, notification_service, db)
-
-        logger.info("Reminder notification check completed")
+            try:
+                await send_single_reminder(reminder, notification_service, db)
+            except Exception as e:
+                logger.error(f"Failed to process reminder {reminder.id}: {str(e)}")
+                continue
 
     except Exception as e:
-        logger.error(f"Error in send_reminder_notifications: {str(e)}")
+        logger.error(f"Error in reminder notification job: {str(e)}")
+        raise e
     finally:
-        db.close()
-        logger.info("Database connection closed") 
+        db.close() 

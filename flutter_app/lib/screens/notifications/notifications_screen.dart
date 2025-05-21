@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:payviya_app/models/notification.dart';
 import 'package:payviya_app/services/notification_service.dart';
 import 'package:payviya_app/models/campaign.dart';
@@ -20,7 +21,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeLocale();
     _loadNotifications();
+  }
+
+  Future<void> _initializeLocale() async {
+    await initializeDateFormatting('tr_TR', null);
   }
 
   Future<void> _loadNotifications() async {
@@ -125,7 +131,7 @@ class NotificationTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      DateFormat('dd.MM.yyyy HH:mm').format(notification.sentAt),
+                      DateFormat('dd.MM.yyyy HH:mm', 'tr_TR').format(notification.sentAt.toLocal()),
                       style: theme.textTheme.bodySmall,
                     ),
                   ],

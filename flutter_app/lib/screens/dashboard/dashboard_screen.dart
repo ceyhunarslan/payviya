@@ -29,7 +29,6 @@ class DashboardScreen extends StatefulWidget {
 
 class DashboardScreenState extends State<DashboardScreen> {
   late int _currentIndex;
-  late PageController _pageController;
   String _userName = '';
   String _userSurname = '';
   late LocationService _locationService;
@@ -41,14 +40,28 @@ class DashboardScreenState extends State<DashboardScreen> {
     'Profil',
   ];
 
+  // Add a getter to check if we should show header elements
+  bool get _shouldShowHeaderElements => _currentIndex != 1; // Hide for Campaign Discovery (index 1)
+
   @override
   void initState() {
     super.initState();
     _locationService = LocationService();
     _currentIndex = widget.initialTabIndex;
-    _pageController = PageController(initialPage: _currentIndex);
     _loadUserData();
     _initializeServices();
+  }
+
+  @override
+  void dispose() {
+    _locationService.stopLocationTracking();
+    super.dispose();
+  }
+
+  void onTabTapped(int index) {
+    if (!mounted) return;
+
+    setState(() => _currentIndex = index);
   }
 
   Future<void> _loadUserData() async {
@@ -94,87 +107,76 @@ class DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    _locationService.stopLocationTracking();
-    super.dispose();
-  }
-
-  void onTabTapped(int index) {
-    if (!mounted) return;
-    
-    // Ensure the index is valid
-    if (index < 0 || index >= _tabs.length) {
-      print('Invalid tab index: $index');
-      return;
-    }
-    
-    setState(() {
-      _currentIndex = index;
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(index);
-      }
-    });
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      automaticallyImplyLeading: false,
-      title: Row(
-        children: [
-          UserAvatar(
-            name: _userName,
-            surname: _userSurname,
-            radius: 18,
-            backgroundColor: AppTheme.primaryColor,
-            textColor: Colors.white,
-            fontSize: 16,
-            enableTap: true,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            _tabTitles[_currentIndex],
-            style: const TextStyle(
-              color: AppTheme.textPrimaryColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        const NotificationIconWithBadge(),
-      ],
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
         if (_currentIndex != 0) {
-          // If not on home tab, go to home tab
           onTabTapped(0);
           return false;
         }
         return true;
       },
       child: Scaffold(
-        appBar: _buildAppBar(),
-        body: PageView(
-          controller: _pageController,
-          children: _tabs,
-          onPageChanged: (index) {
-            if (mounted) {
-              setState(() {
-                _currentIndex = index;
-              });
-            }
-          },
-          physics: const NeverScrollableScrollPhysics(),
-        ),
+        body: _currentIndex == 1
+          ? const CampaignDiscoveryScreen()
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  floating: true,
+                  pinned: true,
+                  snap: false,
+                  backgroundColor: Colors.white,
+                  elevation: 0,
+                  toolbarHeight: 56,
+                  automaticallyImplyLeading: false,
+                  primary: true,
+                  forceElevated: innerBoxIsScrolled,
+                  title: Row(
+                    children: [
+                      UserAvatar(
+                        name: _userName,
+                        surname: _userSurname,
+                        radius: 18,
+                        backgroundColor: AppTheme.primaryColor,
+                        textColor: Colors.white,
+                        fontSize: 16,
+                        enableTap: true,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _tabTitles[_currentIndex],
+                        style: const TextStyle(
+                          color: AppTheme.textPrimaryColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: const [
+                    NotificationIconWithBadge(),
+                    SizedBox(width: 8),
+                  ],
+                ),
+              ],
+              body: IndexedStack(
+                index: _currentIndex > 1 ? _currentIndex - 1 : _currentIndex,
+                children: [
+                  PageStorage(
+                    bucket: PageStorageBucket(),
+                    child: const HomeTab(key: PageStorageKey('home_tab')),
+                  ),
+                  PageStorage(
+                    bucket: PageStorageBucket(),
+                    child: const CardsTab(key: PageStorageKey('cards_tab')),
+                  ),
+                  PageStorage(
+                    bucket: PageStorageBucket(),
+                    child: const ProfileTab(key: PageStorageKey('profile_tab')),
+                  ),
+                ],
+              ),
+            ),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: onTabTapped,
@@ -204,40 +206,44 @@ class DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        floatingActionButton: Container(
-          height: 65,
-          width: 65,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(32.5),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primaryColor.withOpacity(0.4),
-                blurRadius: 10,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => _buildQuickActionsSheet(),
-            );
-          },
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            child: const Icon(Icons.add, size: 30),
-          ),
-        ),
+        floatingActionButton: _buildFloatingActionButton(),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return Container(
+      height: 65,
+      width: 65,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(32.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withOpacity(0.4),
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => _buildQuickActionsSheet(),
+          );
+        },
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: const Icon(Icons.add, size: 30),
       ),
     );
   }

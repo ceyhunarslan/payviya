@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, Text, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, text
 
 from app.db.base import Base
 from app.models.enums import DiscountType, CampaignSource, CampaignStatus
@@ -99,13 +99,75 @@ class CampaignReminder(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"))
-    remind_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    remind_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
+    )
+    created_at = Column(
+        DateTime(timezone=True), 
+        server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
+    )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     is_sent = Column(Boolean, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
 
     # Relationship with cascade delete
     campaign = relationship("Campaign", back_populates="reminders", passive_deletes=True)
+
+    def to_dict(self):
+        """Convert reminder to dictionary with proper timezone handling"""
+        import pytz
+        
+        def format_datetime(dt):
+            """Helper function to format datetime with timezone"""
+            if dt is None:
+                return None
+                
+            # Ensure datetime has timezone info
+            if dt.tzinfo is None:
+                dt = pytz.UTC.localize(dt)
+            
+            # First convert to UTC
+            utc_dt = dt.astimezone(pytz.UTC)
+            
+            # Then convert to local time
+            local_tz = pytz.timezone('Europe/Istanbul')
+            local_dt = utc_dt.astimezone(local_tz)
+            
+            return local_dt.isoformat()
+        
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "campaign_id": self.campaign_id,
+            "remind_at": format_datetime(self.remind_at),
+            "created_at": format_datetime(self.created_at),
+            "updated_at": format_datetime(self.updated_at),
+            "is_sent": self.is_sent,
+            "is_active": self.is_active
+        }
+
+    @staticmethod
+    def _convert_to_utc(dt):
+        """Convert datetime to UTC"""
+        import pytz
+        
+        if dt is None:
+            return None
+            
+        # API'den gelen zaman zaten UTC olduğu için ek dönüşüm yapmıyoruz
+        # Sadece timezone bilgisi yoksa ekliyoruz
+        if dt.tzinfo is None:
+            dt = pytz.UTC.localize(dt)
+            
+        return dt
+
+    def __init__(self, **kwargs):
+        """Initialize with UTC time conversion"""
+        if 'remind_at' in kwargs:
+            kwargs['remind_at'] = self._convert_to_utc(kwargs['remind_at'])
+        super().__init__(**kwargs)
 
 
 class Bank(Base):

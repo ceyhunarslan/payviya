@@ -62,6 +62,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
       );
 
       if (time != null && mounted) {
+        // Create DateTime in local timezone
         final DateTime selectedDateTime = DateTime(
           date.year,
           date.month,
@@ -72,6 +73,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
 
         try {
           setState(() => _isLoading = true);
+          // ReminderService will convert to UTC
           await ReminderService.createReminder(
             campaignId: _campaign!.id,
             remindAt: selectedDateTime,

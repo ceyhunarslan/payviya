@@ -320,18 +320,70 @@ class ApiService {
   }
 
   static Future<List<Campaign>> searchCampaigns(String query) async {
-    final response = await instance.dio.get<Map<String, dynamic>>(
-      '/campaigns/search',
-      queryParameters: {'q': query},
-    );
-    
-    final List<Campaign> campaigns = [];
-    if (response.data != null && response.data!['items'] != null) {
-      for (var item in response.data!['items']) {
-        campaigns.add(Campaign.fromJson(item));
+    try {
+      print('Searching campaigns with query: $query');
+      final response = await instance.dio.get<dynamic>(
+        '/campaigns/search',
+        queryParameters: {'q': query},
+      );
+      
+      print('Search response data type: ${response.data.runtimeType}');
+      print('Search response data: ${response.data}');
+      
+      final List<Campaign> campaigns = [];
+      
+      if (response.data == null) {
+        print('Response data is null');
+        return [];
       }
+      
+      // Handle both list and map responses
+      if (response.data is List) {
+        print('Response is a List');
+        for (var item in response.data) {
+          try {
+            campaigns.add(Campaign.fromJson(item));
+          } catch (e) {
+            print('Error parsing campaign from list: $e');
+          }
+        }
+      } else if (response.data is Map<String, dynamic>) {
+        print('Response is a Map');
+        final items = response.data['items'];
+        if (items != null && items is List) {
+          for (var item in items) {
+            try {
+              campaigns.add(Campaign.fromJson(item));
+            } catch (e) {
+              print('Error parsing campaign from map: $e');
+            }
+          }
+        } else {
+          print('Items is null or not a List. Items type: ${items?.runtimeType}');
+        }
+      } else {
+        print('Unexpected response data type: ${response.data.runtimeType}');
+      }
+      
+      print('Successfully parsed ${campaigns.length} campaigns');
+      return campaigns;
+      
+    } on DioException catch (e) {
+      print('DioException during campaign search: ${e.message}');
+      print('DioException type: ${e.type}');
+      print('DioException response: ${e.response?.data}');
+      print('DioException stacktrace: ${e.stackTrace}');
+      
+      if (e.response?.statusCode == 404) {
+        return [];
+      }
+      rethrow;
+      
+    } catch (e, stackTrace) {
+      print('Unexpected error during campaign search: $e');
+      print('Error stacktrace: $stackTrace');
+      rethrow;
     }
-    return campaigns;
   }
 
   static Future<List<CreditCardListItem>> getUserCards() async {

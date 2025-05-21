@@ -8,6 +8,27 @@ import os
 import json
 import hashlib
 from datetime import datetime
+import pytz
+from app.models.campaign_reminder import CampaignReminder
+from app.models.auth import UserAuth
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# Create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Add formatter to ch
+ch.setFormatter(formatter)
+
+# Add ch to logger
+logger.addHandler(ch)
 
 class NotificationService:
     def __init__(self):
@@ -21,114 +42,19 @@ class NotificationService:
         return hashlib.md5(location_str.encode()).hexdigest()[:50]
     
     async def send_notification(self, notification: Dict[str, Any], db: Session = None) -> Dict[str, Any]:
+        """Send a notification via FCM"""
         try:
-            print("\n=== NOTIFICATION SERVICE DEBUG ===")
-            print(f"Received notification payload: {notification}")
-            
-            # Get FCM token from the notification data
+            # Get FCM token from notification data
             fcm_token = notification.get('fcm_token')
             if not fcm_token:
-                print("❌ FCM token is missing")
-                return {
-                    "success": False,
-                    "message": "FCM token is required"
-                }
-            
-            # Zorunlu alanları kontrol et
-            required_fields = {
-                'user_id': int,
-                'campaign_id': int,
-                'latitude': float,
-                'longitude': float,
-                'category_id': int
-            }
-            
-            print("\n📋 Checking required fields...")
-            
-            # Her bir zorunlu alan için tip kontrolü ve dönüşüm yap
-            field_values = {}
-            missing_fields = []
-            invalid_fields = []
-            
-            for field, field_type in required_fields.items():
-                try:
-                    value = notification.get(field)
-                    if value is None:
-                        missing_fields.append(field)
-                        print(f"❌ Missing field: {field}")
-                        continue
-                        
-                    field_values[field] = field_type(value)
-                    print(f"✅ Field {field} = {field_values[field]} ({type(field_values[field])})")
-                except (ValueError, TypeError) as e:
-                    print(f"❌ Invalid field {field}: {str(e)}")
-                    invalid_fields.append(field)
-            
-            if missing_fields or invalid_fields:
-                error_msg = []
-                if missing_fields:
-                    error_msg.append(f"Missing fields: {', '.join(missing_fields)}")
-                if invalid_fields:
-                    error_msg.append(f"Invalid field types: {', '.join(invalid_fields)}")
-                    
-                print(f"\n❌ Validation failed: {' | '.join(error_msg)}")
-                return {
-                    "success": False,
-                    "message": " | ".join(error_msg)
-                }
-            
-            # Location hash oluştur
-            location_hash = self._generate_location_hash(
-                field_values['latitude'],
-                field_values['longitude']
-            )
-            
-            # Extract data and convert all values to strings
+                raise ValueError("FCM token not found")
+
+            # Convert all data values to strings for FCM
             data = {}
-            raw_data = notification.get('data', {})
-            
-            # Convert all values in data to strings
-            for key, value in raw_data.items():
+            for key, value in notification.get('data', {}).items():
                 data[str(key)] = str(value)
-            
-            # If type exists in root level, add it to data
-            if 'type' in notification:
-                data['type'] = str(notification['type'])
 
-            # Get current date and time
-            now = datetime.now()
-
-            # Create notification history record
-            if db is None:
-                print("Getting new database session...")
-                db = next(get_db())
-
-            # Prepare notification history data according to the actual schema
-            notification_history = NotificationHistory(
-                user_id=field_values['user_id'],
-                merchant_id=int(notification['merchant_id']) if notification.get('merchant_id') else None,
-                campaign_id=field_values['campaign_id'],
-                latitude=field_values['latitude'],
-                longitude=field_values['longitude'],
-                location_hash=location_hash,
-                category_id=field_values['category_id'],
-                sent_at=now,
-                sent_date=now.date(),
-                title=notification.get('title', 'Notification'),
-                body=notification.get('body', ''),
-                is_read=False
-            )
-            
-            # Add to database first to get the ID
-            db.add(notification_history)
-            db.flush()  # This will assign the ID without committing
-            
-            # Add notification ID to data payload
-            data['notificationId'] = str(notification_history.id)
-            
-            print(f"\n📤 Sending FCM message with data: {data}")
-            
-            # Create message
+            # Prepare notification message
             message = messaging.Message(
                 notification=messaging.Notification(
                     title=notification.get('title'),
@@ -137,29 +63,36 @@ class NotificationService:
                 data=data,
                 token=fcm_token
             )
-            
+
             # Send message
             response = messaging.send(message)
-            print(f"✅ FCM message sent successfully: {response}")
-            
-            # Now commit the transaction
-            db.commit()
-            
+            logger.info(f"✅ FCM message sent successfully: {response}")
+
+            # Create notification history record
+            notification_history = NotificationHistory(
+                user_id=notification['user_id'],
+                merchant_id=notification.get('merchant_id'),
+                campaign_id=notification['campaign_id'],
+                latitude=notification.get('latitude'),
+                longitude=notification.get('longitude'),
+                location_hash=self._generate_location_hash(notification['latitude'], notification['longitude']) if notification.get('latitude') and notification.get('longitude') else None,
+                category_id=notification.get('category_id'),
+                title=notification['title'],
+                body=notification['body'],
+                is_read=False,
+                data=notification.get('data')
+            )
+
+            if db:
+                db.add(notification_history)
+                db.commit()
+
             return {
                 "success": True,
                 "message": "Notification sent successfully",
-                "messageId": response,
-                "notification_history_id": notification_history.id
+                "messageId": response
             }
-            
+
         except Exception as e:
-            print(f"\n❌ Error in send_notification: {str(e)}")
-            if hasattr(e, '__cause__'):
-                print(f"Caused by: {str(e.__cause__)}")
-            print(f"Notification payload: {notification}")
-            if 'db' in locals() and db is not None:
-                db.rollback()
-            return {
-                "success": False,
-                "message": f"Failed to send notification: {str(e)}"
-            } 
+            logger.error(f"Error sending notification: {str(e)}")
+            raise e 

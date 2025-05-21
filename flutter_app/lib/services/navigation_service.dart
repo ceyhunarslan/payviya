@@ -193,6 +193,16 @@ class NavigationService {
           arguments: {'campaign': campaign},
         );
       }
+      
+      // Reset scroll position after navigation
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (navigator.context.mounted) {
+        Scrollable.ensureVisible(navigator.context,
+          alignment: 0.0,
+          duration: const Duration(milliseconds: 100),
+        );
+      }
+      
       print('✅ Navigation completed successfully');
       await _log('✅ Campaign detail navigation completed successfully');
     } catch (e) {

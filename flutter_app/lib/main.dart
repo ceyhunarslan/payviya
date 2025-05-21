@@ -72,8 +72,9 @@ class PayViyaApp extends StatelessWidget {
         switch (settings.name) {
           case Routes.test:
             return MaterialPageRoute(
-              builder: (context) => const TestScreen(),
+              builder: (context) => TestScreen(key: const PageStorageKey('test')),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.campaignDetail:
@@ -83,36 +84,46 @@ class PayViyaApp extends StatelessWidget {
             if (args == null || args['campaign'] == null) {
               print('❌ Invalid campaign detail arguments, redirecting to dashboard');
               return MaterialPageRoute(
-                builder: (context) => DashboardScreen(key: DashboardScreen.globalKey),
+                builder: (context) => DashboardScreen(
+                  key: DashboardScreen.globalKey,
+                ),
                 settings: settings,
+                maintainState: false,
               );
             }
             
             return MaterialPageRoute(
-              builder: (context) => CampaignDetailScreen(campaign: args['campaign']),
+              builder: (context) => CampaignDetailScreen(
+                key: PageStorageKey('campaign_${args['campaign'].id}'),
+                campaign: args['campaign']
+              ),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.splash:
             return MaterialPageRoute(
               builder: (context) => const SplashScreen(),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.login:
             return MaterialPageRoute(
               builder: (context) => const LoginScreen(),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.dashboard:
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
               builder: (context) => DashboardScreen(
-                key: DashboardScreen.globalKey,
+                key: PageStorageKey('dashboard_${DateTime.now().millisecondsSinceEpoch}'),
                 initialTabIndex: args?['initialTabIndex'] ?? 0,
               ),
               settings: const RouteSettings(name: '/dashboard'),
+              maintainState: false,
             );
             
           case Routes.verifyCode:
@@ -122,12 +133,17 @@ class PayViyaApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (context) => const LoginScreen(),
                 settings: settings,
+                maintainState: false,
               );
             }
             
             return MaterialPageRoute(
-              builder: (context) => VerifyCodeScreen(email: args['email']),
+              builder: (context) => VerifyCodeScreen(
+                key: PageStorageKey('verify_${args['email']}'),
+                email: args['email']
+              ),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.resetPassword:
@@ -137,21 +153,25 @@ class PayViyaApp extends StatelessWidget {
               return MaterialPageRoute(
                 builder: (context) => const LoginScreen(),
                 settings: settings,
+                maintainState: false,
               );
             }
             
             return MaterialPageRoute(
               builder: (context) => ResetPasswordScreen(
+                key: PageStorageKey('reset_${args['email']}'),
                 email: args['email'],
                 tempToken: args['temp_token'],
               ),
               settings: settings,
+              maintainState: false,
             );
             
           case Routes.profile:
             return MaterialPageRoute(
               builder: (context) => const ProfileTab(),
               settings: settings,
+              maintainState: false,
             );
             
           default:

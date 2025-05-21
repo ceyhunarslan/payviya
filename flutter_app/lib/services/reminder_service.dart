@@ -12,7 +12,11 @@ class ReminderService {
       
       final response = await _apiService.dio.get('/campaign-reminders/user/${user.id}');
       final reminders = response.data as List;
-      return reminders.any((reminder) => reminder['campaign_id'] == campaignId);
+      return reminders.any((reminder) => 
+        reminder['campaign_id'] == campaignId && 
+        reminder['is_sent'] == false && 
+        reminder['is_active'] == true
+      );
     } catch (e) {
       print('Error checking reminder: $e');
       return false;
@@ -27,14 +31,18 @@ class ReminderService {
       final user = await UserService.getCurrentUser();
       if (user == null) throw Exception('User not found');
 
-      // Convert to UTC and ensure proper ISO8601 format with milliseconds
-      final formattedDate = remindAt.toUtc().toIso8601String();
-      print('Creating reminder with date: $formattedDate');
+      // First ensure the time has local timezone info (+03)
+      final localTime = DateTime.parse(remindAt.toString().replaceAll('Z', '+0300'));
+      print('Local time with timezone: $localTime');
+
+      // Now convert to UTC properly
+      final utcTime = localTime.toUtc();
+      print('UTC time: $utcTime');
 
       final response = await _apiService.dio.post('/campaign-reminders/', data: {
         'user_id': user.id.toString(),
         'campaign_id': campaignId,
-        'remind_at': formattedDate,
+        'remind_at': utcTime.toIso8601String(),
       });
       
       print('Reminder creation response: ${response.data}');
